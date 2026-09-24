@@ -8,8 +8,14 @@ from PIL import Image
 
 def load_rgb(path: str) -> np.ndarray:
     with Image.open(path) as im:
-        im = im.convert("RGB")
-        return np.asarray(im, dtype=np.uint8)
+        if im.mode.startswith("I") or im.mode == "F":
+            # PIL's convert() clips 16-bit/32-bit values to 255, turning most
+            # scanner TIFFs solid white. Rescale linearly so band ratios hold.
+            a = np.asarray(im, dtype=np.float64)
+            lo, hi = a.min(), a.max()
+            g = ((a - lo) * (255.0 / max(hi - lo, 1e-9))).astype(np.uint8)
+            return np.stack([g, g, g], axis=2)
+        return np.asarray(im.convert("RGB"), dtype=np.uint8)
 
 
 def to_grayscale(rgb: np.ndarray) -> np.ndarray:

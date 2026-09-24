@@ -80,6 +80,16 @@ def create_project():
                 session.delete(project)
                 return _error(f"'{f.filename}' is not a valid image file.", 415)
 
+            # Browsers can't display TIFF, and many are 16-bit; store an 8-bit PNG instead.
+            if ext in ("tif", "tiff"):
+                from app.detection.imaging import load_rgb, save_rgb
+
+                png_name = f"{os.path.splitext(stored_name)[0]}.png"
+                png_path = os.path.join(project_dir, png_name)
+                save_rgb(load_rgb(stored_path), png_path)
+                os.remove(stored_path)
+                saved[-1] = (f.filename, png_name, png_path)
+
         # Pass 2: all files validated -- now run detection for each.
         for order_index, (orig_filename, stored_name, stored_path) in enumerate(saved):
             from PIL import Image as PILImage

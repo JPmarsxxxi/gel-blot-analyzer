@@ -21,6 +21,24 @@ def test_upload_creates_project_with_lanes_and_bands(client):
     assert "is_gel_like" in img
 
 
+def test_16bit_tiff_upload_is_stored_as_viewable_png_with_contrast(client):
+    import numpy as np
+    from PIL import Image
+
+    from tests.conftest import generate_sample
+
+    img8 = generate_sample(seed=3).image.astype(np.uint16)
+    buf = io.BytesIO()
+    Image.fromarray(img8 * 200 + 1000).save(buf, format="TIFF")
+    buf.seek(0)
+    resp = client.post("/api/projects", data={"images": (buf, "scan.tif")}, content_type="multipart/form-data")
+    assert resp.status_code == 201, resp.get_json()
+    image = client.get(f"/api/projects/{resp.get_json()['project_id']}").get_json()["images"][0]
+    assert image["url"].endswith(".png")
+    served = np.asarray(Image.open(io.BytesIO(client.get(image["url"]).data)).convert("L"))
+    assert served.min() < 50 and served.max() > 200
+
+
 def test_reject_non_image_file_before_processing(client):
     data = {"images": (io.BytesIO(b"not an image"), "fake.png")}
     resp = client.post("/api/projects", data=data, content_type="multipart/form-data")

@@ -9,7 +9,8 @@ refer to "C:\Users\User\gel-blot-analyzer\BUILD_BRIEF.md"
 - Run: `KMP_DUPLICATE_LIB_OK=TRUE python -m app.server` (serves on :5000; the env var works around a Windows/conda OpenMP double-init warning-as-error)
 - Test: `KMP_DUPLICATE_LIB_OK=TRUE python -m pytest tests/ -q`
 - Lint/typecheck: none configured yet.
-- Train the band-detection model (offline, not part of the runtime server): `python -m app.training.train --epochs 25 --batch-size 8 --synth-per-epoch 300`. Writes `app/training/artifacts/band_detector.pt`, which `app/detection/ml_infer.py` loads lazily at inference time.
+- Train the band-detection model (offline, not part of the runtime server): `python -m app.training.train --epochs 25 --batch-size 8 --synth-per-epoch 300`. Writes `app/training/artifacts/band_detector.pt`, which `app/detection/ml_infer.py` loads lazily at inference time. Add `--resume` to continue from the existing checkpoint. A completed run writes `app/training/artifacts/training_record.json`; if that file is missing or stale, the checkpoint came from an interrupted run.
+- Evaluate the model: `python -m app.training.evaluate`. Reports dice separately on synthetic and real GelGenie val/test data; use the real scores, not the mixed `val_dice` stored in the checkpoint, which is dominated by easy synthetic samples.
 
 ## Code style
 

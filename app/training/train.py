@@ -11,8 +11,10 @@ CC-BY-4.0, https://zenodo.org/records/13218469), a subset of which is checked ou
 under app/training/external_data/.
 """
 import argparse
+import json
 import os
 import time
+from datetime import datetime, timezone
 
 import torch
 from torch.utils.data import DataLoader
@@ -22,6 +24,7 @@ from app.training.model import BandUNet, combined_loss
 
 ARTIFACT_DIR = os.path.join(os.path.dirname(__file__), "artifacts")
 ARTIFACT_PATH = os.path.join(ARTIFACT_DIR, "band_detector.pt")
+RECORD_PATH = os.path.join(ARTIFACT_DIR, "training_record.json")
 
 
 def dice_score(logits: torch.Tensor, target: torch.Tensor, eps: float = 1e-6) -> float:
@@ -88,11 +91,34 @@ def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: b
         if val_dice > best_val_dice:
             best_val_dice = val_dice
             torch.save(
-                {"state_dict": model.state_dict(), "base_channels": 16, "val_dice": val_dice},
+                {
+                    "state_dict": model.state_dict(),
+                    "base_channels": 16,
+                    "val_dice": val_dice,
+                    "epoch": epoch,
+                    "epochs": epochs,
+                    "resumed": resume,
+                },
                 ARTIFACT_PATH,
             )
 
     print(f"best val_dice={best_val_dice:.4f}, saved to {ARTIFACT_PATH}")
+
+    # Imported here to avoid a circular import (evaluate imports from this module).
+    from app.training.evaluate import evaluate
+
+    checkpoint = torch.load(ARTIFACT_PATH, map_location=device)
+    record = {
+        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "run_completed": True,
+        "args": {"epochs": epochs, "batch_size": batch_size, "synth_per_epoch": synth_per_epoch, "lr": lr, "resume": resume},
+        "best_epoch": checkpoint.get("epoch"),
+        "val_dice_mixed": checkpoint["val_dice"],
+        "dice": evaluate(ARTIFACT_PATH, device),
+    }
+    with open(RECORD_PATH, "w") as f:
+        json.dump(record, f, indent=2)
+    print(json.dumps(record, indent=2))
 
 
 if __name__ == "__main__":

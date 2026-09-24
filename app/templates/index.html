@@ -6,22 +6,32 @@
   <title>Gel/Blot Analyzer</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-  <div class="upload-page">
-    <h1>Gel/Blot Analyzer</h1>
-    <p class="subtitle">Upload one or more gel/western blot images. Bands are detected automatically &mdash; no manual box-drawing required.</p>
+<body class="upload-body">
+  <main class="upload-page">
+    <h1>Measure your gel bands</h1>
+    <p class="subtitle">Drop in a gel or western blot image. Bands are found and measured for you &mdash; you just check them.</p>
 
-    <form id="upload-form">
-      <label class="dropzone" id="dropzone">
-        <input type="file" id="file-input" name="images" accept=".png,.jpg,.jpeg,.tif,.tiff" multiple>
-        <span id="dropzone-label">Choose image(s) or drag &amp; drop</span>
-      </label>
-      <ul id="file-list"></ul>
-      <button type="submit" id="upload-btn" disabled>Upload &amp; analyze</button>
-      <p id="error-msg" class="error" hidden></p>
-      <p id="status-msg" class="status" hidden>Uploading and detecting bands&hellip;</p>
-    </form>
-  </div>
+    <label class="dropzone" id="dropzone">
+      <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.tif,.tiff" multiple>
+      <div class="dropzone-idle">
+        <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span class="dropzone-title">Drop images here, or <u>browse</u></span>
+        <span class="dropzone-hint">PNG, JPG or TIFF (scanner TIFFs are fine). Add several gels at once if you like.</span>
+      </div>
+      <div class="dropzone-busy" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="dropzone-title" id="busy-title">Finding bands&hellip;</span>
+        <span class="dropzone-hint">Usually a few seconds per image.</span>
+      </div>
+    </label>
+    <p id="error-msg" class="error" role="alert" hidden></p>
+
+    <ol class="steps">
+      <li><strong>Upload</strong><span>lanes and bands are detected automatically</span></li>
+      <li><strong>Check</strong><span>nudge any box that looks off, name your samples</span></li>
+      <li><strong>Export</strong><span>a table, annotated image or PDF report</span></li>
+    </ol>
+  </main>
   <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
 </body>
 </html>

@@ -1,56 +1,48 @@
 const fileInput = document.getElementById("file-input");
-const fileList = document.getElementById("file-list");
-const uploadBtn = document.getElementById("upload-btn");
-const form = document.getElementById("upload-form");
-const errorMsg = document.getElementById("error-msg");
-const statusMsg = document.getElementById("status-msg");
 const dropzone = document.getElementById("dropzone");
+const idleEl = dropzone.querySelector(".dropzone-idle");
+const busyEl = dropzone.querySelector(".dropzone-busy");
+const busyTitle = document.getElementById("busy-title");
+const errorMsg = document.getElementById("error-msg");
 
-function renderFileList() {
-  fileList.innerHTML = "";
-  const files = fileInput.files;
-  for (const f of files) {
-    const li = document.createElement("li");
-    li.textContent = f.name;
-    fileList.appendChild(li);
-  }
-  uploadBtn.disabled = files.length === 0;
+function setBusy(busy) {
+  idleEl.hidden = busy;
+  busyEl.hidden = !busy;
+  dropzone.classList.toggle("busy", busy);
+  fileInput.disabled = busy;
 }
 
-fileInput.addEventListener("change", renderFileList);
-
-["dragover", "dragleave", "drop"].forEach((evt) => {
-  dropzone.addEventListener(evt, (e) => e.preventDefault());
-});
-dropzone.addEventListener("drop", (e) => {
-  if (e.dataTransfer.files.length) {
-    fileInput.files = e.dataTransfer.files;
-    renderFileList();
-  }
-});
-
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
+async function upload(files) {
+  if (!files.length) return;
   errorMsg.hidden = true;
-  statusMsg.hidden = false;
-  uploadBtn.disabled = true;
+  busyTitle.textContent = files.length === 1 ? "Finding bands…" : `Finding bands in ${files.length} images…`;
+  setBusy(true);
 
   const formData = new FormData();
-  for (const f of fileInput.files) {
-    formData.append("images", f);
-  }
+  for (const f of files) formData.append("images", f);
 
   try {
     const resp = await fetch("/api/projects", { method: "POST", body: formData });
     const data = await resp.json();
-    if (!resp.ok) {
-      throw new Error(data.error || "Upload failed.");
-    }
+    if (!resp.ok) throw new Error(data.error || "Upload failed.");
     window.location.href = `/p/${data.project_id}`;
   } catch (err) {
-    statusMsg.hidden = true;
+    setBusy(false);
+    fileInput.value = "";
     errorMsg.textContent = err.message;
     errorMsg.hidden = false;
-    uploadBtn.disabled = false;
   }
+}
+
+fileInput.addEventListener("change", () => upload(fileInput.files));
+
+dropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  dropzone.classList.add("dragging");
+});
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragging"));
+dropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropzone.classList.remove("dragging");
+  if (!dropzone.classList.contains("busy")) upload(e.dataTransfer.files);
 });

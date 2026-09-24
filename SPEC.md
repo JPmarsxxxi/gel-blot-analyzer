@@ -123,6 +123,40 @@ Suggested structure (names indicative, not prescriptive):
   V1 given patent risk and regulatory scope creep, and revisit only after real
   legal review if ever pursued.
 
+## UI: progressive disclosure (revision after first hands-on use)
+
+First real use found the V1 editor intimidating: every tool visible at once,
+delete/resize controls on every band, an unexplained color code, a ladder
+button on every lane, and a long table per gel. Same features, same API;
+the UI shows what the common path needs and reveals the rest on demand.
+
+- **Upload page:** choosing or dropping files starts the upload immediately
+  (no separate button). While detection runs, show a progress state that
+  says what is happening. One line explains what happens next.
+- **One gel at a time:** a project with several images shows a tab strip of
+  thumbnails; the selected gel fills the workspace instead of stacking every
+  gel on one long page.
+- **Layout:** image on the left, results panel on the right (stacked on narrow
+  screens). Top bar: project name, "Copy link", and a single Export menu
+  (CSV table, annotated images, PDF report).
+- **Summary first:** a one-line summary ("Found 31 bands in 7 lanes") and a
+  short, dismissible hint on how to correct the overlay.
+- **Clean overlay:** band boxes only. Delete and resize controls appear on the
+  selected band; Delete/Backspace removes it. Confident bands are solid,
+  low-confidence bands dashed amber (not red, which reads as an error), with a
+  legend.
+- **Lanes:** a header strip above the image, aligned to the lanes, holds each
+  lane's sample-name field. Positions are in image-relative percentages so
+  they stay aligned at any size.
+- **Toolbar:** only the everyday controls: a detection slider labeled
+  "Fewer bands / More bands" and "Add band". Rotate, crop, brightness and
+  contrast live in a collapsed "Adjust image" section.
+- **Results panel:** bands grouped by lane with a small bar for % of lane;
+  selecting a band in the panel selects it on the image and vice versa.
+  Molecular-weight calibration is a collapsed, optional section with a
+  "Ladder lane" picker, replacing the per-lane ladder buttons.
+- **Errors** show as an inline message, not a browser alert().
+
 ## Edge cases
 
 - **Zero bands detected:** show the image with no boxes; user can manually

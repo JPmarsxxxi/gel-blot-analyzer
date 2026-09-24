@@ -8,58 +8,89 @@
 </head>
 <body data-project-id="{{ project_id }}">
   <header class="topbar">
-    <h1>Gel/Blot Analyzer</h1>
-    <div class="export-buttons">
-      <a class="btn" id="export-csv">Export CSV</a>
-      <a class="btn" id="export-png">Export PNG</a>
-      <a class="btn" id="export-pdf">Export PDF</a>
+    <a class="brand" href="/">Gel/Blot Analyzer</a>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="copy-link" type="button" title="Anyone with this link can view and edit this project">Copy link</button>
+      <details class="menu" id="export-menu">
+        <summary class="btn btn-primary">Export</summary>
+        <div class="menu-items">
+          <a id="export-csv">Table (CSV)<small>Every band from every gel</small></a>
+          <a id="export-png">Annotated images (PNG)<small>Boxes and sample names drawn on</small></a>
+          <a id="export-pdf">PDF report<small>Images plus the table</small></a>
+        </div>
+      </details>
     </div>
   </header>
 
-  <p class="project-url-note">This project is saved at this page's URL &mdash; bookmark it to come back later. Anyone with the link can view and edit it.</p>
-
-  <main id="images-container"></main>
+  <nav class="gel-tabs" id="gel-tabs" hidden></nav>
+  <p class="toast" id="toast" role="alert" hidden></p>
+  <main id="workspace"></main>
 
   <template id="image-panel-template">
     <section class="gel-panel">
-      <div class="gel-panel-header">
-        <h2 class="image-filename"></h2>
-        <p class="gel-warning" hidden>This image doesn't look like a typical gel/blot. Detection results may be unreliable.</p>
-      </div>
+      <div class="gel-main">
+        <div class="summary-row">
+          <p class="summary"></p>
+          <p class="gel-warning" hidden>This doesn't look like a typical gel or blot, so check the boxes carefully.</p>
+        </div>
 
-      <div class="adjustment-bar">
-        <label>Rotate (&deg;) <input type="number" class="adj-rotate" value="0" step="1"></label>
-        <label>Brightness <input type="range" class="adj-brightness" min="-100" max="100" value="0"></label>
-        <label>Contrast <input type="range" class="adj-contrast" min="0.1" max="3" step="0.05" value="1"></label>
-        <button class="btn crop-toggle-btn" type="button">Crop</button>
-        <button class="btn apply-adjustments-btn" type="button">Apply adjustments</button>
-        <label class="sensitivity-label">Sensitivity
-          <input type="range" class="adj-sensitivity" min="0" max="1" step="0.01" value="0.5">
-        </label>
-        <button class="btn add-band-toggle-btn" type="button">Add band</button>
-      </div>
+        <div class="hint" hidden>
+          <span><strong>Check the boxes.</strong> Drag a box to move it, drag its corner to resize, or select it and press <kbd>Delete</kbd>. Type a sample name above each lane.</span>
+          <button class="btn btn-ghost hint-close" type="button">Got it</button>
+        </div>
 
-      <div class="editor-wrap">
-        <div class="editor-stage">
-          <img class="gel-image" draggable="false">
-          <svg class="gel-overlay"></svg>
-          <div class="lane-labels"></div>
+        <div class="toolbar">
+          <label class="slider-field" title="Re-runs detection. Your sample names are kept.">
+            <span class="slider-end">Fewer bands</span>
+            <input type="range" class="adj-sensitivity" min="0" max="1" step="0.01" value="0.5" aria-label="Detection sensitivity">
+            <span class="slider-end">More bands</span>
+          </label>
+          <button class="btn add-band-toggle-btn" type="button">+ Add band</button>
+          <button class="btn adjust-toggle-btn" type="button" aria-expanded="false">Adjust image</button>
+          <span class="legend">
+            <span class="swatch swatch-sure"></span>Confident
+            <span class="swatch swatch-unsure"></span>Worth a look
+          </span>
+        </div>
+
+        <div class="adjust-drawer" hidden>
+          <label>Rotate <input type="number" class="adj-rotate" value="0" step="0.5"> &deg;</label>
+          <label>Brightness <input type="range" class="adj-brightness" min="-100" max="100" value="0"></label>
+          <label>Contrast <input type="range" class="adj-contrast" min="0.1" max="3" step="0.05" value="1"></label>
+          <button class="btn crop-toggle-btn" type="button">Crop</button>
+          <span class="drawer-actions">
+            <button class="btn btn-ghost cancel-adjustments-btn" type="button">Cancel</button>
+            <button class="btn btn-primary apply-adjustments-btn" type="button">Apply</button>
+          </span>
+          <p class="drawer-note">Applying re-detects lanes and bands on this gel, so sample names and manual box edits here are reset.</p>
+        </div>
+
+        <p class="mode-hint" hidden></p>
+
+        <div class="stage-wrap">
+          <div class="stage">
+            <div class="lane-header"></div>
+            <div class="editor-stage">
+              <img class="gel-image" draggable="false" alt="">
+              <svg class="gel-overlay"></svg>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="ladder-panel" hidden>
-        <h3>Ladder calibration</h3>
-        <p class="ladder-hint">Enter the known size (kDa) for each band in the ladder lane, top to bottom.</p>
-        <div class="ladder-bands"></div>
-        <button class="btn apply-calibration-btn" type="button">Apply calibration</button>
-      </div>
+      <aside class="results">
+        <h2>Results</h2>
+        <p class="results-note">% of lane is each band's share of its lane's total signal, after background correction.</p>
+        <div class="lanes-list"></div>
 
-      <table class="bands-table">
-        <thead>
-          <tr><th>Lane</th><th>Sample</th><th>Band #</th><th>Intensity</th><th>% of lane</th><th>kDa</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+        <details class="calibration">
+          <summary>Molecular weight <span class="optional">optional</span></summary>
+          <p class="calibration-hint">Pick the lane with your ladder and enter its known sizes, top to bottom. Sizes are then estimated for every other band.</p>
+          <label class="ladder-pick">Ladder lane <select class="ladder-select"></select></label>
+          <div class="ladder-bands"></div>
+          <button class="btn btn-primary apply-calibration-btn" type="button" hidden>Estimate sizes</button>
+        </details>
+      </aside>
     </section>
   </template>
 

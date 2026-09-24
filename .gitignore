@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+
+storage/
+.claude/worktrees/
+
+# GelGenie dataset (CC-BY-4.0, Zenodo record 13218469); re-download to retrain
+app/training/external_data/

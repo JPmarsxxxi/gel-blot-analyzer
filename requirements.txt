@@ -1,0 +1,12 @@
+flask>=3.0
+sqlalchemy>=2.0
+numpy
+scipy
+scikit-image
+opencv-python-headless
+pillow
+reportlab
+torch
+torchvision
+scikit-learn
+tifffile

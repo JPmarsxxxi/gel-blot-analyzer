@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gel/Blot Analyzer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="upload-page">
+    <h1>Gel/Blot Analyzer</h1>
+    <p class="subtitle">Upload one or more gel/western blot images. Bands are detected automatically &mdash; no manual box-drawing required.</p>
+
+    <form id="upload-form">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file-input" name="images" accept=".png,.jpg,.jpeg,.tif,.tiff" multiple>
+        <span id="dropzone-label">Choose image(s) or drag &amp; drop</span>
+      </label>
+      <ul id="file-list"></ul>
+      <button type="submit" id="upload-btn" disabled>Upload &amp; analyze</button>
+      <p id="error-msg" class="error" hidden></p>
+      <p id="status-msg" class="status" hidden>Uploading and detecting bands&hellip;</p>
+    </form>
+  </div>
+  <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+</body>
+</html>

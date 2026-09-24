@@ -1,0 +1,106 @@
+"""Offline training script for the band-segmentation model.
+
+Run: python -m app.training.train [--epochs N] [--batch-size N]
+
+Not part of the runtime server — produces the model artifact the server loads
+for inference (see app/detection/ml_infer.py).
+
+Training data: synthetic gel images generated on the fly (app/training/synth_data.py)
+combined with the real GelGenie dataset (Dunn Lab / University of Edinburgh,
+CC-BY-4.0, https://zenodo.org/records/13218469), a subset of which is checked out
+under app/training/external_data/.
+"""
+import argparse
+import os
+import time
+
+import torch
+from torch.utils.data import DataLoader
+
+from app.training.dataset import GelSegmentationDataset
+from app.training.model import BandUNet, combined_loss
+
+ARTIFACT_DIR = os.path.join(os.path.dirname(__file__), "artifacts")
+ARTIFACT_PATH = os.path.join(ARTIFACT_DIR, "band_detector.pt")
+
+
+def dice_score(logits: torch.Tensor, target: torch.Tensor, eps: float = 1e-6) -> float:
+    probs = (torch.sigmoid(logits) > 0.5).float()
+    probs = probs.flatten(1)
+    target = target.flatten(1)
+    intersection = (probs * target).sum(dim=1)
+    union = probs.sum(dim=1) + target.sum(dim=1)
+    return ((2 * intersection + eps) / (union + eps)).mean().item()
+
+
+def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: bool) -> None:
+    os.makedirs(ARTIFACT_DIR, exist_ok=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"device: {device}")
+
+    train_ds = GelSegmentationDataset(split="train", synth_per_epoch=synth_per_epoch, seed=42)
+    val_ds = GelSegmentationDataset(split="val", synth_per_epoch=synth_per_epoch, seed=1234)
+    print(f"train samples/epoch: {len(train_ds)}  val samples/epoch: {len(val_ds)}")
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+
+    model = BandUNet(base_channels=16).to(device)
+
+    best_val_dice = -1.0
+    if resume and os.path.exists(ARTIFACT_PATH):
+        checkpoint = torch.load(ARTIFACT_PATH, map_location=device)
+        model.load_state_dict(checkpoint["state_dict"])
+        best_val_dice = checkpoint.get("val_dice", -1.0)
+        print(f"resumed from {ARTIFACT_PATH} (val_dice={best_val_dice:.4f})")
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    for epoch in range(1, epochs + 1):
+        t0 = time.time()
+        model.train()
+        train_loss = 0.0
+        for imgs, masks in train_loader:
+            imgs, masks = imgs.to(device), masks.to(device)
+            optimizer.zero_grad()
+            logits = model(imgs)
+            loss = combined_loss(logits, masks)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * imgs.size(0)
+        train_loss /= len(train_ds)
+
+        model.eval()
+        val_dice = 0.0
+        n_val = 0
+        with torch.no_grad():
+            for imgs, masks in val_loader:
+                imgs, masks = imgs.to(device), masks.to(device)
+                logits = model(imgs)
+                val_dice += dice_score(logits, masks) * imgs.size(0)
+                n_val += imgs.size(0)
+        val_dice /= max(1, n_val)
+
+        scheduler.step()
+        dt = time.time() - t0
+        print(f"epoch {epoch:3d}/{epochs}  train_loss={train_loss:.4f}  val_dice={val_dice:.4f}  ({dt:.1f}s)")
+
+        if val_dice > best_val_dice:
+            best_val_dice = val_dice
+            torch.save(
+                {"state_dict": model.state_dict(), "base_channels": 16, "val_dice": val_dice},
+                ARTIFACT_PATH,
+            )
+
+    print(f"best val_dice={best_val_dice:.4f}, saved to {ARTIFACT_PATH}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--synth-per-epoch", type=int, default=300)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--resume", action="store_true", help="warm-start from the existing checkpoint")
+    args = parser.parse_args()
+    run(args.epochs, args.batch_size, args.synth_per_epoch, args.lr, args.resume)

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gel/Blot Analyzer &mdash; Project</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-project-id="{{ project_id }}">
+  <header class="topbar">
+    <h1>Gel/Blot Analyzer</h1>
+    <div class="export-buttons">
+      <a class="btn" id="export-csv">Export CSV</a>
+      <a class="btn" id="export-png">Export PNG</a>
+      <a class="btn" id="export-pdf">Export PDF</a>
+    </div>
+  </header>
+
+  <p class="project-url-note">This project is saved at this page's URL &mdash; bookmark it to come back later. Anyone with the link can view and edit it.</p>
+
+  <main id="images-container"></main>
+
+  <template id="image-panel-template">
+    <section class="gel-panel">
+      <div class="gel-panel-header">
+        <h2 class="image-filename"></h2>
+        <p class="gel-warning" hidden>This image doesn't look like a typical gel/blot. Detection results may be unreliable.</p>
+      </div>
+
+      <div class="adjustment-bar">
+        <label>Rotate (&deg;) <input type="number" class="adj-rotate" value="0" step="1"></label>
+        <label>Brightness <input type="range" class="adj-brightness" min="-100" max="100" value="0"></label>
+        <label>Contrast <input type="range" class="adj-contrast" min="0.1" max="3" step="0.05" value="1"></label>
+        <button class="btn crop-toggle-btn" type="button">Crop</button>
+        <button class="btn apply-adjustments-btn" type="button">Apply adjustments</button>
+        <label class="sensitivity-label">Sensitivity
+          <input type="range" class="adj-sensitivity" min="0" max="1" step="0.01" value="0.5">
+        </label>
+        <button class="btn add-band-toggle-btn" type="button">Add band</button>
+      </div>
+
+      <div class="editor-wrap">
+        <div class="editor-stage">
+          <img class="gel-image" draggable="false">
+          <svg class="gel-overlay"></svg>
+          <div class="lane-labels"></div>
+        </div>
+      </div>
+
+      <div class="ladder-panel" hidden>
+        <h3>Ladder calibration</h3>
+        <p class="ladder-hint">Enter the known size (kDa) for each band in the ladder lane, top to bottom.</p>
+        <div class="ladder-bands"></div>
+        <button class="btn apply-calibration-btn" type="button">Apply calibration</button>
+      </div>
+
+      <table class="bands-table">
+        <thead>
+          <tr><th>Lane</th><th>Sample</th><th>Band #</th><th>Intensity</th><th>% of lane</th><th>kDa</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <script src="{{ url_for('static', filename='js/project.js') }}"></script>
+</body>
+</html>

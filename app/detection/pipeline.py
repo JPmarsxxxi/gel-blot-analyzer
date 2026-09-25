@@ -23,8 +23,8 @@ class DetectionResult:
 def run_full_detection(path: str, sensitivity: float = 0.5) -> DetectionResult:
     rgb = imaging.load_rgb(path)
     gray, signal = get_gray_and_signal(path)
-    lanes = detect_lanes(signal)
     prob_mask = ml_infer.predict_band_probability(gray)
+    lanes = detect_lanes(prob_mask)
 
     bands_by_lane = [detect_bands_in_lane(signal, prob_mask, lane, sensitivity) for lane in lanes]
     is_gel = looks_like_gel(rgb, gray, lanes, signal)

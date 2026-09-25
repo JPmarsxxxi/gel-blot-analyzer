@@ -11,6 +11,7 @@ refer to "C:\Users\User\gel-blot-analyzer\BUILD_BRIEF.md"
 - Lint/typecheck: none configured yet.
 - Train the band-detection model (offline, not part of the runtime server): `python -m app.training.train --epochs 25 --batch-size 8 --synth-per-epoch 300`. Writes `app/training/artifacts/band_detector.pt`, which `app/detection/ml_infer.py` loads lazily at inference time. Add `--resume` to continue from the existing checkpoint. A completed run writes `app/training/artifacts/training_record.json`; if that file is missing or stale, the checkpoint came from an interrupted run.
 - Evaluate the model: `python -m app.training.evaluate`. Reports dice separately on synthetic and real GelGenie val/test data; use the real scores, not the mixed `val_dice` stored in the checkpoint, which is dominated by easy synthetic samples.
+- Evaluate lane detection: `python -m app.training.evaluate_lanes`. Scores detected lanes against lanes derived from GelGenie band masks (spurious / missed / merged). The masks only label lanes that have annotated bands, so some "spurious" lanes are real lanes the annotators skipped.
 
 ## Code style
 

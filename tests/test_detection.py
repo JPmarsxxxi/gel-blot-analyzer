@@ -23,6 +23,18 @@ def test_higher_sensitivity_detects_at_least_as_many_bands():
     assert counts[0] <= counts[1] <= counts[2]
 
 
+def test_detect_lanes_finds_each_band_column_and_stays_near_the_bands():
+    prob = np.zeros((200, 400))
+    for center in (100, 150, 200, 250):
+        prob[60:70, center - 15:center + 15] = 1.0
+        prob[120:128, center - 15:center + 15] = 1.0
+    lanes = detect_lanes(prob)
+    assert len(lanes) == 4
+    for lane, center in zip(lanes, (100, 150, 200, 250)):
+        assert lane.x_start < center < lane.x_end
+    assert lanes[0].x_start > 50 and lanes[-1].x_end < 350
+
+
 def test_detect_lanes_falls_back_to_single_lane_when_blank():
     blank = np.zeros((100, 100))
     lanes = detect_lanes(blank)

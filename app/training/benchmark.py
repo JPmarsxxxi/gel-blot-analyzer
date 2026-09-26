@@ -93,6 +93,11 @@ def _external_pairs() -> list[tuple[str, str]]:
 
 
 def main(name: str, split: str) -> None:
+    # A missing candidate model would silently fall back to the classical
+    # heuristic and produce meaningless scores.
+    for var in ("GEL_MODEL_PATH", "GEL_YOLO_PATH"):
+        if os.environ.get(var) and not os.path.exists(os.environ[var]):
+            raise SystemExit(f"{var}={os.environ[var]} does not exist")
     per_subset: dict[str, list[dict]] = {}
     pairs = _external_pairs() if split == "external" else _load_real_pairs(split)
     for img_path, mask_path in pairs:

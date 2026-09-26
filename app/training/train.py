@@ -102,8 +102,13 @@ def run(
     if resume and os.path.exists(ARTIFACT_PATH):
         checkpoint = torch.load(ARTIFACT_PATH, map_location=device)
         model.load_state_dict(checkpoint["state_dict"])
-        best_val_dice = _val_dice(model, val_loader, device)
-        print(f"resumed from {ARTIFACT_PATH} (val_dice={best_val_dice:.4f})")
+        start_dice = _val_dice(model, val_loader, device)
+        print(f"resumed from {ARTIFACT_PATH} (val_dice={start_dice:.4f})")
+        # Only the in-place run (out == the shipped model) must beat the starting
+        # model before overwriting it; an experiment always keeps its own best
+        # epoch, or a run that never beats the start would save nothing.
+        if out == ARTIFACT_PATH:
+            best_val_dice = start_dice
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     if patience:

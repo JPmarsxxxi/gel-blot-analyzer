@@ -37,12 +37,8 @@ def reference_lanes(mask: np.ndarray) -> list[tuple[int, int]]:
     return [r for r in runs if r[1] - r[0] >= min_width]
 
 
-def score_image(img_path: str, mask_path: str) -> dict:
-    gray = to_grayscale(load_rgb(img_path))
-    detected = detect_lanes(ml_infer.predict_band_probability(gray))
-    mask = np.asarray(Image.open(mask_path))
+def lane_errors(detected, mask: np.ndarray) -> dict:
     ref = reference_lanes(mask)
-
     band_cols = (mask > 0).any(axis=0)
     spurious = sum(1 for l in detected if not band_cols[int(l.x_start):int(np.ceil(l.x_end))].any())
     centers = [(l.x_start + l.x_end) / 2 for l in detected]
@@ -50,6 +46,12 @@ def score_image(img_path: str, mask_path: str) -> dict:
     owner = [next((i for i, l in enumerate(detected) if l.x_start <= (a + b) / 2 < l.x_end), None) for a, b in ref]
     merged = sum(owner.count(i) - 1 for i in set(owner) if i is not None and owner.count(i) > 1)
     return {"ref": len(ref), "detected": len(detected), "spurious": spurious, "missed": missed, "merged": merged}
+
+
+def score_image(img_path: str, mask_path: str) -> dict:
+    gray = to_grayscale(load_rgb(img_path))
+    detected = detect_lanes(ml_infer.predict_band_probability(gray))
+    return lane_errors(detected, np.asarray(Image.open(mask_path)))
 
 
 def main(splits: list[str], show: int) -> None:

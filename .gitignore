@@ -8,3 +8,4 @@ storage/
 
 # GelGenie dataset (CC-BY-4.0, Zenodo record 13218469); re-download to retrain
 app/training/external_data/
+app/training/artifacts/experiments/

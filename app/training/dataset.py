@@ -11,11 +11,16 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from app.detection.imaging import load_rgb
-from app.training.synth_data import generate_sample
+from app.training.augment import augment
+from app.training.synth_data import generate_sample, generate_varied_sample
 
 EXTERNAL_DATA_DIR = os.path.join(os.path.dirname(__file__), "external_data")
-# The GelGenie subsets with images included (lsdb_gels ships masks only).
-REAL_SUBSETS = ("nathan_gels", "matthew_gels", "matthew_gels_2", "quantitation_ladder_gels", "stella_gels_for_finetuning")
+# The GelGenie subsets used by the benchmark; fixed so scores stay comparable
+# when training data changes.
+BENCHMARK_SUBSETS = ("nathan_gels", "matthew_gels", "matthew_gels_2", "quantitation_ladder_gels", "stella_gels_for_finetuning")
+# lsdb_gels ships masks only; its images come from the RGP-caps archive
+# (CC BY-SA 2.1 JP), placed beside the masks.
+REAL_SUBSETS = BENCHMARK_SUBSETS + ("lsdb_gels",)
 
 TARGET_SIZE = (256, 256)  # (H, W), must be divisible by 16 for the 4-level U-Net
 
@@ -26,10 +31,10 @@ def _resize_pair(image: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.nd
     return np.array(img_im, dtype=np.uint8), (np.array(mask_im) > 127).astype(np.uint8)
 
 
-def _load_real_pairs(split: str) -> list[tuple[str, str]]:
+def _load_real_pairs(split: str, subsets: tuple[str, ...] = REAL_SUBSETS) -> list[tuple[str, str]]:
     subdir = {"train": ("images", "masks"), "val": ("val_images", "val_masks"), "test": ("test_images", "test_masks")}[split]
     pairs = []
-    for subset in REAL_SUBSETS:
+    for subset in subsets:
         img_dir = os.path.join(EXTERNAL_DATA_DIR, subset, subset, subdir[0])
         mask_dir = os.path.join(EXTERNAL_DATA_DIR, subset, subset, subdir[1])
         if not os.path.isdir(img_dir):
@@ -68,8 +73,10 @@ class GelSegmentationDataset(Dataset):
     unbounded) and mixed with every real training image once per epoch.
     """
 
-    def __init__(self, split: str = "train", synth_per_epoch: int = 400, seed: int | None = None):
+    def __init__(self, split: str = "train", synth_per_epoch: int = 400, seed: int | None = None, augment: bool = False, varied_synth: bool = False):
         self.split = split
+        self.augment = augment and split == "train"
+        self.varied_synth = varied_synth
         self.synth_per_epoch = synth_per_epoch if split == "train" else max(20, synth_per_epoch // 10)
         self.real_pairs = _load_real_pairs(split)
         self.rng_seed = seed
@@ -80,7 +87,7 @@ class GelSegmentationDataset(Dataset):
     def __getitem__(self, idx: int):
         if idx < self.synth_per_epoch:
             seed = None if self.rng_seed is None else self.rng_seed * 100003 + idx
-            sample = generate_sample(seed=seed)
+            sample = (generate_varied_sample if self.varied_synth else generate_sample)(seed=seed)
             image, mask = sample.image, sample.mask
         else:
             img_path, mask_path = self.real_pairs[idx - self.synth_per_epoch]
@@ -88,10 +95,14 @@ class GelSegmentationDataset(Dataset):
         if image.shape != TARGET_SIZE:
             image, mask = _resize_pair(image, mask)
 
-        if self.split == "train" and random.random() < 0.5:
+        if self.augment:
+            image, mask = augment(image, mask, np.random.default_rng())
+            if image.shape != TARGET_SIZE:
+                image, mask = _resize_pair(image, mask)
+        elif self.split == "train" and random.random() < 0.5:
             image = np.fliplr(image).copy()
             mask = np.fliplr(mask).copy()
 
-        img_t = torch.from_numpy(image).float().unsqueeze(0) / 255.0
-        mask_t = torch.from_numpy(mask).float().unsqueeze(0)
+        img_t = torch.from_numpy(np.array(image)).float().unsqueeze(0) / 255.0
+        mask_t = torch.from_numpy(np.array(mask)).float().unsqueeze(0)
         return img_t, mask_t

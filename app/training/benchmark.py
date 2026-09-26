@@ -28,7 +28,7 @@ from PIL import Image
 from scipy.ndimage import center_of_mass, label
 
 from app.detection import pipeline
-from app.training.dataset import EXTERNAL_DATA_DIR, _load_real_pairs
+from app.training.dataset import BENCHMARK_SUBSETS, EXTERNAL_DATA_DIR, _load_real_pairs
 from app.training.evaluate_lanes import lane_errors, reference_lanes
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "artifacts", "benchmarks")
@@ -94,7 +94,7 @@ def _external_pairs() -> list[tuple[str, str]]:
 
 def main(name: str, split: str) -> None:
     per_subset: dict[str, list[dict]] = {}
-    pairs = _external_pairs() if split == "external" else _load_real_pairs(split)
+    pairs = _external_pairs() if split == "external" else _load_real_pairs(split, BENCHMARK_SUBSETS)
     for img_path, mask_path in pairs:
         subset = img_path.split("external_data" + os.sep)[-1].split(os.sep)[0]
         per_subset.setdefault(subset, []).append(score_image(img_path, mask_path))

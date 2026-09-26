@@ -47,12 +47,45 @@ def _val_dice(model: BandUNet, loader: DataLoader, device: torch.device) -> floa
     return total / max(1, n)
 
 
-def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: bool) -> None:
-    os.makedirs(ARTIFACT_DIR, exist_ok=True)
+def _plot_curves(history: list[dict], path: str) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    epochs = [h["epoch"] for h in history]
+    fig, ax1 = plt.subplots(figsize=(7, 4))
+    ax1.plot(epochs, [h["train_loss"] for h in history], color="#6b7280", label="train loss")
+    ax1.set_xlabel("epoch")
+    ax1.set_ylabel("train loss")
+    ax2 = ax1.twinx()
+    ax2.plot(epochs, [h["val_dice"] for h in history], color="#2563eb", label="val dice (real gels)")
+    ax2.set_ylabel("val dice")
+    fig.legend(loc="lower center", ncol=2, frameon=False)
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+def run(
+    epochs: int,
+    batch_size: int,
+    synth_per_epoch: int,
+    lr: float,
+    resume: bool,
+    augment: bool = False,
+    varied_synth: bool = False,
+    patience: int | None = None,
+    out: str = ARTIFACT_PATH,
+) -> None:
+    """With patience, trains up to `epochs` but halves the learning rate when
+    val dice stalls and stops once it hasn't improved for `patience` epochs;
+    without, runs a fixed cosine schedule as before."""
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 
-    train_ds = GelSegmentationDataset(split="train", synth_per_epoch=synth_per_epoch, seed=42)
+    train_ds = GelSegmentationDataset(split="train", synth_per_epoch=synth_per_epoch, seed=42, augment=augment, varied_synth=varied_synth)
     val_ds = GelSegmentationDataset(split="val", synth_per_epoch=synth_per_epoch, seed=1234)
     # Select checkpoints on real gels only when available: synthetic samples are
     # easy enough that a mixed score mostly tracks them.
@@ -73,7 +106,12 @@ def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: b
         print(f"resumed from {ARTIFACT_PATH} (val_dice={best_val_dice:.4f})")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    if patience:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=max(1, patience // 3))
+    else:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+    history: list[dict] = []
+    since_best = 0
     for epoch in range(1, epochs + 1):
         t0 = time.time()
         model.train()
@@ -89,13 +127,15 @@ def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: b
         train_loss /= len(train_ds)
 
         val_dice = _val_dice(model, val_loader, device)
-
-        scheduler.step()
+        scheduler.step(val_dice) if patience else scheduler.step()
         dt = time.time() - t0
-        print(f"epoch {epoch:3d}/{epochs}  train_loss={train_loss:.4f}  val_dice={val_dice:.4f}  ({dt:.1f}s)")
+        lr_now = optimizer.param_groups[0]["lr"]
+        history.append({"epoch": epoch, "train_loss": train_loss, "val_dice": val_dice, "lr": lr_now})
+        print(f"epoch {epoch:3d}/{epochs}  train_loss={train_loss:.4f}  val_dice={val_dice:.4f}  lr={lr_now:.2e}  ({dt:.1f}s)")
 
         if val_dice > best_val_dice:
             best_val_dice = val_dice
+            since_best = 0
             torch.save(
                 {
                     "state_dict": model.state_dict(),
@@ -106,27 +146,39 @@ def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: b
                     "epochs": epochs,
                     "resumed": resume,
                 },
-                ARTIFACT_PATH,
+                out,
             )
+        else:
+            since_best += 1
+            if patience and since_best >= patience:
+                print(f"early stop: no improvement for {patience} epochs")
+                break
 
-    print(f"best val_dice={best_val_dice:.4f}, saved to {ARTIFACT_PATH}")
+    print(f"best val_dice={best_val_dice:.4f}, saved to {out}")
 
     # Imported here to avoid a circular import (evaluate imports from this module).
     from app.training.evaluate import evaluate
 
-    checkpoint = torch.load(ARTIFACT_PATH, map_location=device)
+    stem = RECORD_PATH[: -len(".json")] if out == ARTIFACT_PATH else os.path.splitext(out)[0] + "_record"
+    _plot_curves(history, stem + "_curves.png")
+    checkpoint = torch.load(out, map_location=device)
     record = {
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_completed": True,
-        "args": {"epochs": epochs, "batch_size": batch_size, "synth_per_epoch": synth_per_epoch, "lr": lr, "resume": resume},
+        "args": {
+            "epochs": epochs, "batch_size": batch_size, "synth_per_epoch": synth_per_epoch, "lr": lr,
+            "resume": resume, "augment": augment, "varied_synth": varied_synth, "patience": patience,
+        },
         "best_epoch": checkpoint.get("epoch"),
+        "epochs_run": len(history),
         "val_dice": checkpoint["val_dice"],
         "val_dice_on": checkpoint["val_dice_on"],
-        "dice": evaluate(ARTIFACT_PATH, device),
+        "dice": evaluate(out, device),
+        "history": history,
     }
-    with open(RECORD_PATH, "w") as f:
+    with open(stem + ".json", "w") as f:
         json.dump(record, f, indent=2)
-    print(json.dumps(record, indent=2))
+    print(json.dumps({k: v for k, v in record.items() if k != "history"}, indent=2))
 
 
 if __name__ == "__main__":
@@ -136,5 +188,9 @@ if __name__ == "__main__":
     parser.add_argument("--synth-per-epoch", type=int, default=300)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--resume", action="store_true", help="warm-start from the existing checkpoint")
+    parser.add_argument("--augment", action="store_true", help="random exposure/gamma/polarity/blur/noise/JPEG/rotation/crop")
+    parser.add_argument("--varied-synth", action="store_true", help="add western-blot, protein-gel and strip styles plus distractor artifacts")
+    parser.add_argument("--patience", type=int, default=None, help="stop after this many epochs without val improvement")
+    parser.add_argument("--out", default=ARTIFACT_PATH, help="where to write the checkpoint (keep the shipped model untouched for experiments)")
     args = parser.parse_args()
-    run(args.epochs, args.batch_size, args.synth_per_epoch, args.lr, args.resume)
+    run(args.epochs, args.batch_size, args.synth_per_epoch, args.lr, args.resume, args.augment, args.varied_synth, args.patience, args.out)

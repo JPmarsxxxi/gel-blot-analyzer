@@ -18,10 +18,12 @@ _lock = threading.Lock()
 _model: BandUNet | None = None
 _device: torch.device | None = None
 _loaded = False
+_input_mode = "squash"
+_work_long = 1024
 
 
 def _ensure_loaded() -> None:
-    global _model, _device, _loaded
+    global _model, _device, _loaded, _input_mode, _work_long
     if _loaded:
         return
     with _lock:
@@ -35,6 +37,8 @@ def _ensure_loaded() -> None:
             model.to(_device)
             model.eval()
             _model = model
+            _input_mode = checkpoint.get("input_mode", "squash")
+            _work_long = checkpoint.get("work_long", 1024)
         else:
             _model = None
         _loaded = True
@@ -59,6 +63,9 @@ def predict_band_probability(gray: np.ndarray, target_size: tuple[int, int] = (2
         norm = (gray - gray.min()) / (gray.max() - gray.min() + 1e-9)
         return np.abs(norm - float(np.median(norm))).astype(np.float32)
 
+    if _input_mode == "tile":
+        return _predict_working_resolution(gray)
+
     with torch.no_grad():
         t = torch.from_numpy(gray.astype(np.float32) / 255.0).unsqueeze(0).unsqueeze(0)
         t = F.interpolate(t, size=target_size, mode="bilinear", align_corners=False)
@@ -67,3 +74,20 @@ def predict_band_probability(gray: np.ndarray, target_size: tuple[int, int] = (2
         probs = torch.sigmoid(logits)
         probs = F.interpolate(probs, size=(h, w), mode="bilinear", align_corners=False)
         return probs.squeeze(0).squeeze(0).cpu().numpy()
+
+
+def _predict_working_resolution(gray: np.ndarray) -> np.ndarray:
+    """The U-Net is fully convolutional, so the whole gel runs in one pass at
+    the resolution it was trained on (long side <= work_long): equivalent to
+    overlapping tiles, without seams."""
+    h, w = gray.shape
+    scale = min(1.0, _work_long / max(h, w))
+    sh, sw = max(16, round(h * scale)), max(16, round(w * scale))
+    with torch.no_grad():
+        t = torch.from_numpy(gray.astype(np.float32) / 255.0)[None, None]
+        t = F.interpolate(t, size=(sh, sw), mode="bilinear", align_corners=False)
+        ph, pw = (-sh) % 16, (-sw) % 16
+        t = F.pad(t, (0, pw, 0, ph), value=float(t.median()))
+        probs = torch.sigmoid(_model(t.to(_device)))[:, :, :sh, :sw]
+        probs = F.interpolate(probs, size=(h, w), mode="bilinear", align_corners=False)
+        return probs[0, 0].cpu().numpy()

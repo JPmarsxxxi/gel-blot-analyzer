@@ -13,6 +13,9 @@ masks; each connected component is one reference band.
   there would be unfairly counted as false).
 - merged: extra reference bands sharing one box (two bands in one box = 1).
 
+--split external scores the 25 GelGenie external_gels from five other labs,
+never used for training or tuning: the closest proxy for gels found online.
+
 Writes app/training/artifacts/benchmarks/NAME_SPLIT.json.
 """
 import argparse
@@ -25,7 +28,7 @@ from PIL import Image
 from scipy.ndimage import center_of_mass, label
 
 from app.detection import pipeline
-from app.training.dataset import _load_real_pairs
+from app.training.dataset import EXTERNAL_DATA_DIR, _load_real_pairs
 from app.training.evaluate_lanes import lane_errors, reference_lanes
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "artifacts", "benchmarks")
@@ -83,9 +86,16 @@ def summarize(rows: list[dict]) -> dict:
     }
 
 
+def _external_pairs() -> list[tuple[str, str]]:
+    root = os.path.join(EXTERNAL_DATA_DIR, "external_gels", "external_gels")
+    names = sorted(n for n in os.listdir(os.path.join(root, "images")) if not n.startswith(".")) if os.path.isdir(root) else []
+    return [(os.path.join(root, "images", n), os.path.join(root, "masks", os.path.splitext(n)[0] + ".tif")) for n in names]
+
+
 def main(name: str, split: str) -> None:
     per_subset: dict[str, list[dict]] = {}
-    for img_path, mask_path in _load_real_pairs(split):
+    pairs = _external_pairs() if split == "external" else _load_real_pairs(split)
+    for img_path, mask_path in pairs:
         subset = img_path.split("external_data" + os.sep)[-1].split(os.sep)[0]
         per_subset.setdefault(subset, []).append(score_image(img_path, mask_path))
 
@@ -108,6 +118,6 @@ def main(name: str, split: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", required=True)
-    parser.add_argument("--split", choices=["val", "test"], default="test")
+    parser.add_argument("--split", choices=["val", "test", "external"], default="test")
     args = parser.parse_args()
     main(args.name, args.split)

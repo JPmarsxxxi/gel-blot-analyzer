@@ -10,7 +10,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
-from app.detection.imaging import load_rgb
+from app.detection.imaging import enhance_contrast, load_rgb
 from app.training.synth_data import generate_sample
 
 EXTERNAL_DATA_DIR = os.path.join(os.path.dirname(__file__), "external_data")
@@ -46,15 +46,21 @@ def _load_real_pairs(split: str) -> list[tuple[str, str]]:
     return pairs
 
 
-_real_cache: dict[tuple[str, str], tuple[np.ndarray, np.ndarray]] = {}
+_real_cache: dict[tuple[str, str, str | None], tuple[np.ndarray, np.ndarray]] = {}
 
 
-def _load_real_sample(img_path: str, mask_path: str) -> tuple[np.ndarray, np.ndarray]:
+def _to_model_input(img: np.ndarray, contrast: str | None) -> np.ndarray:
+    # Applied at native resolution, before resizing, to match ml_infer.
+    return np.clip(enhance_contrast(img.astype(np.float64), contrast), 0, 255).astype(np.uint8) if contrast else img
+
+
+def _load_real_sample(img_path: str, mask_path: str, contrast: str | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Returns the pair already resized to TARGET_SIZE, cached: full-size
     16-bit TIFFs take far longer to decode than an epoch's compute."""
-    key = (img_path, mask_path)
+    key = (img_path, mask_path, contrast)
     if key not in _real_cache:
         img = np.asarray(Image.fromarray(load_rgb(img_path)).convert("L"), dtype=np.uint8)
+        img = _to_model_input(img, contrast)
         mask = np.asarray(Image.open(mask_path))
         mask = (mask > 127).astype(np.uint8) if mask.max() > 1 else mask.astype(np.uint8)
         _real_cache[key] = _resize_pair(img, mask)
@@ -68,8 +74,9 @@ class GelSegmentationDataset(Dataset):
     unbounded) and mixed with every real training image once per epoch.
     """
 
-    def __init__(self, split: str = "train", synth_per_epoch: int = 400, seed: int | None = None):
+    def __init__(self, split: str = "train", synth_per_epoch: int = 400, seed: int | None = None, contrast: str | None = None):
         self.split = split
+        self.contrast = contrast
         self.synth_per_epoch = synth_per_epoch if split == "train" else max(20, synth_per_epoch // 10)
         self.real_pairs = _load_real_pairs(split)
         self.rng_seed = seed
@@ -81,10 +88,10 @@ class GelSegmentationDataset(Dataset):
         if idx < self.synth_per_epoch:
             seed = None if self.rng_seed is None else self.rng_seed * 100003 + idx
             sample = generate_sample(seed=seed)
-            image, mask = sample.image, sample.mask
+            image, mask = _to_model_input(sample.image, self.contrast), sample.mask
         else:
             img_path, mask_path = self.real_pairs[idx - self.synth_per_epoch]
-            image, mask = _load_real_sample(img_path, mask_path)
+            image, mask = _load_real_sample(img_path, mask_path, self.contrast)
         if image.shape != TARGET_SIZE:
             image, mask = _resize_pair(image, mask)
 

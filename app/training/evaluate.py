@@ -32,10 +32,11 @@ def evaluate(checkpoint_path: str, device: torch.device) -> dict[str, float]:
     model.eval()
 
     results = {}
-    val_ds = GelSegmentationDataset(split="val", synth_per_epoch=300, seed=1234)
+    contrast = checkpoint.get("input_contrast")
+    val_ds = GelSegmentationDataset(split="val", synth_per_epoch=300, seed=1234, contrast=contrast)
     results["synthetic_val"] = _mean_dice(model, Subset(val_ds, range(val_ds.synth_per_epoch)), device)
     for split in ("val", "test"):
-        ds = GelSegmentationDataset(split=split, synth_per_epoch=0)
+        ds = GelSegmentationDataset(split=split, synth_per_epoch=0, contrast=contrast)
         real_only = Subset(ds, range(ds.synth_per_epoch, len(ds)))
         results[f"real_{split}"] = _mean_dice(model, real_only, device) if len(real_only) else float("nan")
     return results

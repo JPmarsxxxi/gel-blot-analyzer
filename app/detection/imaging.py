@@ -4,6 +4,7 @@ All functions operate on numpy arrays in [0, 255] float space unless noted.
 """
 import numpy as np
 from PIL import Image
+from skimage.exposure import equalize_adapthist
 
 
 def load_rgb(path: str) -> np.ndarray:
@@ -23,6 +24,21 @@ def to_grayscale(rgb: np.ndarray) -> np.ndarray:
     # some scans/exports come in as RGB.
     weights = np.array([0.2126, 0.7152, 0.0722])
     return (rgb.astype(np.float64) * weights).sum(axis=2)
+
+
+def enhance_contrast(gray: np.ndarray, mode: str | None) -> np.ndarray:
+    """Contrast normalization for the band model's input only. Never feed the
+    result into intensity measurement: it is non-linear and would distort
+    band ratios."""
+    if not mode:
+        return gray
+    lo, hi = np.percentile(gray, (0.5, 99.5))
+    out = np.clip((gray - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+    if mode == "clahe":
+        out = equalize_adapthist(out, clip_limit=0.02)
+    elif mode != "stretch":
+        raise ValueError(f"unknown contrast mode: {mode}")
+    return out * 255.0
 
 
 def save_rgb(rgb: np.ndarray, path: str) -> None:

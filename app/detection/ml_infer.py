@@ -12,16 +12,18 @@ import torch
 import torch.nn.functional as F
 
 from app.config import MODEL_PATH
+from app.detection.imaging import enhance_contrast
 from app.training.model import BandUNet
 
 _lock = threading.Lock()
 _model: BandUNet | None = None
 _device: torch.device | None = None
 _loaded = False
+_contrast: str | None = None
 
 
 def _ensure_loaded() -> None:
-    global _model, _device, _loaded
+    global _model, _device, _loaded, _contrast
     if _loaded:
         return
     with _lock:
@@ -35,6 +37,7 @@ def _ensure_loaded() -> None:
             model.to(_device)
             model.eval()
             _model = model
+            _contrast = checkpoint.get("input_contrast")
         else:
             _model = None
         _loaded = True
@@ -59,6 +62,7 @@ def predict_band_probability(gray: np.ndarray, target_size: tuple[int, int] = (2
         norm = (gray - gray.min()) / (gray.max() - gray.min() + 1e-9)
         return np.abs(norm - float(np.median(norm))).astype(np.float32)
 
+    gray = enhance_contrast(gray, _contrast)
     with torch.no_grad():
         t = torch.from_numpy(gray.astype(np.float32) / 255.0).unsqueeze(0).unsqueeze(0)
         t = F.interpolate(t, size=target_size, mode="bilinear", align_corners=False)

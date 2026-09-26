@@ -47,13 +47,13 @@ def _val_dice(model: BandUNet, loader: DataLoader, device: torch.device) -> floa
     return total / max(1, n)
 
 
-def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: bool) -> None:
+def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: bool, contrast: str | None = None, out: str = ARTIFACT_PATH) -> None:
     os.makedirs(ARTIFACT_DIR, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 
-    train_ds = GelSegmentationDataset(split="train", synth_per_epoch=synth_per_epoch, seed=42)
-    val_ds = GelSegmentationDataset(split="val", synth_per_epoch=synth_per_epoch, seed=1234)
+    train_ds = GelSegmentationDataset(split="train", synth_per_epoch=synth_per_epoch, seed=42, contrast=contrast)
+    val_ds = GelSegmentationDataset(split="val", synth_per_epoch=synth_per_epoch, seed=1234, contrast=contrast)
     # Select checkpoints on real gels only when available: synthetic samples are
     # easy enough that a mixed score mostly tracks them.
     if val_ds.real_pairs:
@@ -105,26 +105,27 @@ def run(epochs: int, batch_size: int, synth_per_epoch: int, lr: float, resume: b
                     "epoch": epoch,
                     "epochs": epochs,
                     "resumed": resume,
+                    "input_contrast": contrast,
                 },
-                ARTIFACT_PATH,
+                out,
             )
 
-    print(f"best val_dice={best_val_dice:.4f}, saved to {ARTIFACT_PATH}")
+    print(f"best val_dice={best_val_dice:.4f}, saved to {out}")
 
     # Imported here to avoid a circular import (evaluate imports from this module).
     from app.training.evaluate import evaluate
 
-    checkpoint = torch.load(ARTIFACT_PATH, map_location=device)
+    checkpoint = torch.load(out, map_location=device)
     record = {
         "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_completed": True,
-        "args": {"epochs": epochs, "batch_size": batch_size, "synth_per_epoch": synth_per_epoch, "lr": lr, "resume": resume},
+        "args": {"epochs": epochs, "batch_size": batch_size, "synth_per_epoch": synth_per_epoch, "lr": lr, "resume": resume, "input_contrast": contrast},
         "best_epoch": checkpoint.get("epoch"),
         "val_dice": checkpoint["val_dice"],
         "val_dice_on": checkpoint["val_dice_on"],
-        "dice": evaluate(ARTIFACT_PATH, device),
+        "dice": evaluate(out, device),
     }
-    with open(RECORD_PATH, "w") as f:
+    with open(RECORD_PATH if out == ARTIFACT_PATH else os.path.splitext(out)[0] + "_record.json", "w") as f:
         json.dump(record, f, indent=2)
     print(json.dumps(record, indent=2))
 
@@ -136,5 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--synth-per-epoch", type=int, default=300)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--resume", action="store_true", help="warm-start from the existing checkpoint")
+    parser.add_argument("--input-contrast", choices=["stretch", "clahe"], default=None)
+    parser.add_argument("--out", default=ARTIFACT_PATH, help="where to write the checkpoint (keep the shipped model untouched for experiments)")
     args = parser.parse_args()
-    run(args.epochs, args.batch_size, args.synth_per_epoch, args.lr, args.resume)
+    run(args.epochs, args.batch_size, args.synth_per_epoch, args.lr, args.resume, args.input_contrast, args.out)

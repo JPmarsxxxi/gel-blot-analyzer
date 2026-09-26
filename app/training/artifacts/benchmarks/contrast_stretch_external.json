@@ -1,0 +1,38 @@
+{
+  "name": "contrast_stretch",
+  "split": "external",
+  "overall": {
+    "images": 25,
+    "ref_bands": 1357,
+    "band_recall": 0.4878,
+    "band_precision": 0.5179,
+    "band_f1": 0.5024,
+    "merged_bands": 17,
+    "lanes": {
+      "ref": 260,
+      "spurious": 12,
+      "missed": 20,
+      "merged": 10,
+      "all_right": 13
+    },
+    "seconds_per_image": 5.38
+  },
+  "by_subset": {
+    "external_gels": {
+      "images": 25,
+      "ref_bands": 1357,
+      "band_recall": 0.4878,
+      "band_precision": 0.5179,
+      "band_f1": 0.5024,
+      "merged_bands": 17,
+      "lanes": {
+        "ref": 260,
+        "spurious": 12,
+        "missed": 20,
+        "merged": 10,
+        "all_right": 13
+      },
+      "seconds_per_image": 5.38
+    }
+  }
+}

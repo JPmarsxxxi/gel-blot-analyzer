@@ -1,0 +1,38 @@
+{
+  "name": "contrast_clahe",
+  "split": "external",
+  "overall": {
+    "images": 25,
+    "ref_bands": 1357,
+    "band_recall": 0.4554,
+    "band_precision": 0.5195,
+    "band_f1": 0.4854,
+    "merged_bands": 12,
+    "lanes": {
+      "ref": 260,
+      "spurious": 12,
+      "missed": 35,
+      "merged": 16,
+      "all_right": 12
+    },
+    "seconds_per_image": 5.85
+  },
+  "by_subset": {
+    "external_gels": {
+      "images": 25,
+      "ref_bands": 1357,
+      "band_recall": 0.4554,
+      "band_precision": 0.5195,
+      "band_f1": 0.4854,
+      "merged_bands": 12,
+      "lanes": {
+        "ref": 260,
+        "spurious": 12,
+        "missed": 35,
+        "merged": 16,
+        "all_right": 12
+      },
+      "seconds_per_image": 5.85
+    }
+  }
+}

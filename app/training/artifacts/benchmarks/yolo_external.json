@@ -1,0 +1,38 @@
+{
+  "name": "yolo",
+  "split": "external",
+  "overall": {
+    "images": 25,
+    "ref_bands": 1357,
+    "band_recall": 0.8136,
+    "band_precision": 0.8864,
+    "band_f1": 0.8484,
+    "merged_bands": 37,
+    "lanes": {
+      "ref": 260,
+      "spurious": 5,
+      "missed": 22,
+      "merged": 10,
+      "all_right": 12
+    },
+    "seconds_per_image": 4.5
+  },
+  "by_subset": {
+    "external_gels": {
+      "images": 25,
+      "ref_bands": 1357,
+      "band_recall": 0.8136,
+      "band_precision": 0.8864,
+      "band_f1": 0.8484,
+      "merged_bands": 37,
+      "lanes": {
+        "ref": 260,
+        "spurious": 5,
+        "missed": 22,
+        "merged": 10,
+        "all_right": 12
+      },
+      "seconds_per_image": 4.5
+    }
+  }
+}

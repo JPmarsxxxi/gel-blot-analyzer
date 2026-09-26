@@ -316,6 +316,24 @@ kbd {
 .lane-name::placeholder { color: #98a2b3; }
 .lane-name:hover { border-color: var(--border-strong); }
 .lane-name:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.lane-remove {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.lane-slot:hover .lane-remove, .lane-slot:focus-within .lane-remove, .lane-remove:focus-visible { opacity: 1; }
 .lane-slot.is-ladder .lane-name { background: #fff7e6; border-color: #f3d19c; }
 
 .editor-stage { position: relative; }
@@ -381,6 +399,19 @@ kbd {
 .lane-card-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lane-card-name.muted { color: #98a2b3; font-style: italic; }
 .lane-count { color: var(--muted); font-size: 0.78rem; flex: none; }
+.lane-card-remove {
+  flex: none;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0;
+}
+.lane-card:hover .lane-card-remove, .lane-card-remove:focus-visible { opacity: 1; }
+.lane-card-remove:hover { color: var(--danger); text-decoration: underline; }
 
 .band-rows { list-style: none; margin: 0; padding: 4px 0; }
 .band-row {

@@ -109,6 +109,7 @@ class GelPanel {
     this.ladderBandsEl = q(".ladder-bands");
     this.applyCalibrationBtn = q(".apply-calibration-btn");
     this.addBandBtn = q(".add-band-toggle-btn");
+    this.addLaneBtn = q(".add-lane-toggle-btn");
     this.cropBtn = q(".crop-toggle-btn");
 
     const hint = q(".hint");
@@ -155,16 +156,21 @@ class GelPanel {
     this.addBandBtn.addEventListener("click", () => {
       this.setMode(this.mode === "add-band" ? "select" : "add-band");
     });
+    this.addLaneBtn.addEventListener("click", () => {
+      this.setMode(this.mode === "add-lane" ? "select" : "add-lane");
+    });
   }
 
   setMode(mode) {
     this.mode = mode;
     this.addBandBtn.classList.toggle("active", mode === "add-band");
+    this.addLaneBtn.classList.toggle("active", mode === "add-lane");
     this.cropBtn.classList.toggle("active", mode === "crop");
-    this.svg.classList.toggle("adding", mode === "add-band");
+    this.svg.classList.toggle("adding", mode === "add-band" || mode === "add-lane");
     this.svg.classList.toggle("cropping", mode === "crop");
     const hints = {
       "add-band": "Click on a band in the image to add a box there. Press Esc when you're done.",
+      "add-lane": "Click where a lane was missed to add it, or inside a lane that holds two to split it there.",
       crop: "Drag a rectangle around the part of the image to keep, then press Apply.",
     };
     this.modeHintEl.textContent = hints[mode] || "";
@@ -288,6 +294,12 @@ class GelPanel {
       return;
     }
 
+    if (this.mode === "add-lane") {
+      this.setMode("select");
+      this._addLane(pt.x);
+      return;
+    }
+
     if (this.mode === "add-band") {
       const lane = this.image.lanes.find((l) => pt.x >= l.x_start && pt.x <= l.x_end);
       if (!lane) return;
@@ -398,6 +410,31 @@ class GelPanel {
       this._patchLane(lane);
       const newest = lane.bands.reduce((a, b) => (b.id > a.id ? b : a), lane.bands[0]);
       this.selectedBandId = newest ? newest.id : null;
+      this.render();
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  async _addLane(x) {
+    this.el.classList.add("working");
+    try {
+      this.image = await api(`/api/images/${this.image.id}/lanes`, jsonBody("POST", { x }));
+      this.selectedBandId = null;
+      this.render();
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      this.el.classList.remove("working");
+    }
+  }
+
+  async deleteLane(lane) {
+    const n = lane.bands.length;
+    if (n && !confirm(`Remove lane ${lane.index + 1} and its ${n} band${n === 1 ? "" : "s"}?`)) return;
+    try {
+      this.image = await api(`/api/lanes/${lane.id}`, { method: "DELETE" });
+      this.selectedBandId = null;
       this.render();
     } catch (err) {
       toast(err.message);
@@ -548,7 +585,14 @@ class GelPanel {
           }
         }, 400);
       });
-      slot.appendChild(input);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "lane-remove";
+      remove.textContent = "\u00d7";
+      remove.title = `Remove lane ${lane.index + 1}`;
+      remove.setAttribute("aria-label", `Remove lane ${lane.index + 1}`);
+      remove.addEventListener("click", () => this.deleteLane(lane));
+      slot.append(input, remove);
       this.laneHeaderEl.appendChild(slot);
     }
   }
@@ -575,7 +619,13 @@ class GelPanel {
       const count = document.createElement("span");
       count.className = "lane-count";
       count.textContent = lane.bands.length ? `${lane.bands.length} band${lane.bands.length === 1 ? "" : "s"}` : "no bands";
-      head.append(num, name, count);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "lane-card-remove";
+      remove.textContent = "Remove";
+      remove.title = `Remove lane ${lane.index + 1} and its bands`;
+      remove.addEventListener("click", () => this.deleteLane(lane));
+      head.append(num, name, count, remove);
       card.appendChild(head);
 
       const calibrated = this.image.lanes.some((l) => l.bands.some((b) => b.estimated_kda != null));

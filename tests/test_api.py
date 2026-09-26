@@ -161,3 +161,51 @@ def test_exports(client):
 def test_unknown_project_404(client):
     resp = client.get("/api/projects/doesnotexist")
     assert resp.status_code == 404
+
+
+def _first_image(client, pid):
+    return client.get(f"/api/projects/{pid}").get_json()["images"][0]
+
+
+def test_add_lane_inside_a_lane_splits_it_and_moves_right_hand_bands(client):
+    image = _first_image(client, _upload(client))
+    lane = max(image["lanes"], key=lambda l: len(l["bands"]))
+    mid = (lane["x_start"] + lane["x_end"]) / 2
+    client.patch(f"/api/lanes/{lane['id']}", json={"label": "keep me"})
+    band_total = sum(len(l["bands"]) for l in image["lanes"])
+
+    resp = client.post(f"/api/images/{image['id']}/lanes", json={"x": mid})
+    assert resp.status_code == 201, resp.get_json()
+    updated = resp.get_json()
+    assert len(updated["lanes"]) == len(image["lanes"]) + 1
+    assert [l["index"] for l in updated["lanes"]] == list(range(len(updated["lanes"])))
+    assert sum(len(l["bands"]) for l in updated["lanes"]) == band_total
+    left = next(l for l in updated["lanes"] if l["id"] == lane["id"])
+    right = next(l for l in updated["lanes"] if l["x_start"] == mid)
+    assert left["x_end"] == mid and left["label"] == "keep me"
+    assert all(b["x"] + b["width"] / 2 >= mid for b in right["bands"])
+    assert all(b["x"] + b["width"] / 2 < mid for b in left["bands"])
+
+
+def test_add_lane_in_empty_space_creates_a_new_lane(client):
+    image = _first_image(client, _upload(client))
+    first = min(image["lanes"], key=lambda l: l["x_start"])
+    client.patch(f"/api/lanes/{first['id']}", json={"x_start": first["x_start"] + (first["x_end"] - first["x_start"]) / 2})
+
+    resp = client.post(f"/api/images/{image['id']}/lanes", json={"x": first["x_start"] + 1})
+    assert resp.status_code == 201, resp.get_json()
+    updated = resp.get_json()
+    assert len(updated["lanes"]) == len(image["lanes"]) + 1
+    assert updated["lanes"][0]["index"] == 0
+    assert updated["lanes"][0]["x_end"] <= updated["lanes"][1]["x_start"]
+
+
+def test_delete_lane_removes_it_and_its_bands_and_renumbers(client):
+    image = _first_image(client, _upload(client))
+    victim = image["lanes"][0]
+    resp = client.delete(f"/api/lanes/{victim['id']}")
+    assert resp.status_code == 200
+    updated = resp.get_json()
+    assert victim["id"] not in [l["id"] for l in updated["lanes"]]
+    assert [l["index"] for l in updated["lanes"]] == list(range(len(updated["lanes"])))
+    assert client.delete(f"/api/lanes/{victim['id']}").status_code == 404

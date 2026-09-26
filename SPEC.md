@@ -148,6 +148,12 @@ the UI shows what the common path needs and reveals the rest on demand.
 - **Lanes:** a header strip above the image, aligned to the lanes, holds each
   lane's sample-name field. Positions are in image-relative percentages so
   they stay aligned at any size.
+- **Adding/removing lanes:** "+ Add lane" then a click: in empty space it adds
+  a lane of typical width and detects bands in it (a missed lane); inside a
+  lane it splits that lane there, moving bands right of the click (two lanes
+  detected as one). Each lane has a remove control (on its name field and in
+  the results panel), confirming first when the lane has bands. Lanes are
+  renumbered left to right; sample names stay with their lanes.
 - **Toolbar:** only the everyday controls: a detection slider labeled
   "Fewer bands / More bands" and "Add band". Rotate, crop, brightness and
   contrast live in a collapsed "Adjust image" section.

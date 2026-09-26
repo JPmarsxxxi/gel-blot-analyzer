@@ -308,6 +308,87 @@ def update_lane(lane_id):
         return jsonify(serialize_lane(lane))
 
 
+def _renumber_lanes(image: GelImage) -> None:
+    image.lanes.sort(key=lambda l: l.x_start)
+    for i, lane in enumerate(image.lanes):
+        lane.index = i
+
+
+@bp.route("/api/images/<int:image_id>/lanes", methods=["POST"])
+def add_lane(image_id):
+    """Adds a lane at x. Inside an existing lane, splits it there (detection
+    merged two lanes); in empty space, adds a lane of typical width and runs
+    band detection in it (detection missed a lane)."""
+    body = request.get_json(force=True, silent=True) or {}
+    if "x" not in body:
+        return _error("Missing 'x'.")
+
+    with session_scope() as session:
+        image = session.get(GelImage, image_id)
+        if image is None:
+            return _error("Image not found.", 404)
+        x = min(max(float(body["x"]), 0.0), float(image.width))
+        lanes = sorted(image.lanes, key=lambda l: l.x_start)
+        container = next((l for l in lanes if l.x_start <= x < l.x_end), None)
+
+        if container is not None:
+            if min(x - container.x_start, container.x_end - x) < 3:
+                return _error("Too close to the lane's edge to split it there.")
+            new_lane = Lane(index=0, x_start=x, x_end=container.x_end)
+            container.x_end = x
+            image.lanes.append(new_lane)
+            for band in [b for b in container.bands if b.x + b.width / 2 >= x]:
+                # Reassign through the backref: removing from container.bands
+                # first would mark the band as a delete-orphan.
+                band.lane = new_lane
+            session.flush()
+            _refresh_lane_percentages(container)
+        else:
+            widths = [l.x_end - l.x_start for l in lanes]
+            half = (sorted(widths)[len(widths) // 2] if widths else image.width * 0.1) / 2
+            left = max([l.x_end for l in lanes if l.x_end <= x], default=0.0)
+            right = min([l.x_start for l in lanes if l.x_start > x], default=float(image.width))
+            boundary = LaneBoundary(x_start=max(left, x - half), x_end=min(right, x + half))
+            if boundary.x_end - boundary.x_start < 3:
+                return _error("There's no room for a lane there.")
+            new_lane = Lane(index=0, x_start=boundary.x_start, x_end=boundary.x_end)
+            image.lanes.append(new_lane)
+            (detected,) = pipeline.run_band_redetection(_image_path(image), [boundary], image.sensitivity)
+            for band in detected:
+                new_lane.bands.append(
+                    Band(
+                        x=band.x,
+                        y=band.y,
+                        width=band.width,
+                        height=band.height,
+                        intensity=band.intensity,
+                        percent_of_lane=band.percent_of_lane,
+                        confidence=band.confidence,
+                        low_confidence=band.low_confidence,
+                    )
+                )
+
+        session.flush()
+        _refresh_lane_percentages(new_lane)
+        _renumber_lanes(image)
+        session.flush()
+        return jsonify(serialize_image(image)), 201
+
+
+@bp.route("/api/lanes/<int:lane_id>", methods=["DELETE"])
+def delete_lane(lane_id):
+    with session_scope() as session:
+        lane = session.get(Lane, lane_id)
+        if lane is None:
+            return _error("Lane not found.", 404)
+        image = lane.image
+        image.lanes.remove(lane)
+        session.flush()
+        _renumber_lanes(image)
+        session.flush()
+        return jsonify(serialize_image(image))
+
+
 @bp.route("/api/lanes/<int:lane_id>/bands", methods=["POST"])
 def add_band(lane_id):
     body = request.get_json(force=True, silent=True) or {}

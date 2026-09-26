@@ -1,0 +1,38 @@
+{
+  "name": "tiling",
+  "split": "external",
+  "overall": {
+    "images": 25,
+    "ref_bands": 1357,
+    "band_recall": 0.5549,
+    "band_precision": 0.4603,
+    "band_f1": 0.5032,
+    "merged_bands": 20,
+    "lanes": {
+      "ref": 260,
+      "spurious": 41,
+      "missed": 8,
+      "merged": 1,
+      "all_right": 8
+    },
+    "seconds_per_image": 5.06
+  },
+  "by_subset": {
+    "external_gels": {
+      "images": 25,
+      "ref_bands": 1357,
+      "band_recall": 0.5549,
+      "band_precision": 0.4603,
+      "band_f1": 0.5032,
+      "merged_bands": 20,
+      "lanes": {
+        "ref": 260,
+        "spurious": 41,
+        "missed": 8,
+        "merged": 1,
+        "all_right": 8
+      },
+      "seconds_per_image": 5.06
+    }
+  }
+}

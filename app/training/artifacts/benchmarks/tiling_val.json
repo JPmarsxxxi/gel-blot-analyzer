@@ -1,0 +1,102 @@
+{
+  "name": "tiling",
+  "split": "val",
+  "overall": {
+    "images": 47,
+    "ref_bands": 2240,
+    "band_recall": 0.5759,
+    "band_precision": 0.4751,
+    "band_f1": 0.5207,
+    "merged_bands": 13,
+    "lanes": {
+      "ref": 260,
+      "spurious": 51,
+      "missed": 8,
+      "merged": 2,
+      "all_right": 29
+    },
+    "seconds_per_image": 2.43
+  },
+  "by_subset": {
+    "matthew_gels": {
+      "images": 30,
+      "ref_bands": 1424,
+      "band_recall": 0.4761,
+      "band_precision": 0.4448,
+      "band_f1": 0.4599,
+      "merged_bands": 7,
+      "lanes": {
+        "ref": 169,
+        "spurious": 24,
+        "missed": 5,
+        "merged": 1,
+        "all_right": 21
+      },
+      "seconds_per_image": 2.56
+    },
+    "matthew_gels_2": {
+      "images": 8,
+      "ref_bands": 224,
+      "band_recall": 0.7857,
+      "band_precision": 0.4859,
+      "band_f1": 0.6004,
+      "merged_bands": 5,
+      "lanes": {
+        "ref": 44,
+        "spurious": 4,
+        "missed": 0,
+        "merged": 0,
+        "all_right": 4
+      },
+      "seconds_per_image": 1.93
+    },
+    "nathan_gels": {
+      "images": 3,
+      "ref_bands": 50,
+      "band_recall": 0.48,
+      "band_precision": 0.451,
+      "band_f1": 0.465,
+      "merged_bands": 1,
+      "lanes": {
+        "ref": 12,
+        "spurious": 0,
+        "missed": 1,
+        "merged": 0,
+        "all_right": 2
+      },
+      "seconds_per_image": 2.07
+    },
+    "quantitation_ladder_gels": {
+      "images": 3,
+      "ref_bands": 449,
+      "band_recall": 0.8864,
+      "band_precision": 0.5573,
+      "band_f1": 0.6843,
+      "merged_bands": 0,
+      "lanes": {
+        "ref": 17,
+        "spurious": 2,
+        "missed": 1,
+        "merged": 1,
+        "all_right": 1
+      },
+      "seconds_per_image": 2.07
+    },
+    "stella_gels_for_finetuning": {
+      "images": 3,
+      "ref_bands": 93,
+      "band_recall": 0.1505,
+      "band_precision": 0.2258,
+      "band_f1": 0.1806,
+      "merged_bands": 0,
+      "lanes": {
+        "ref": 18,
+        "spurious": 21,
+        "missed": 1,
+        "merged": 0,
+        "all_right": 1
+      },
+      "seconds_per_image": 3.13
+    }
+  }
+}

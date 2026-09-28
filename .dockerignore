@@ -1,0 +1,8 @@
+.git
+.claude
+**/__pycache__
+storage
+tests
+app/training/external_data
+app/training/artifacts/experiments
+app/training/artifacts/benchmarks

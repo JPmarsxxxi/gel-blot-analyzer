@@ -6,7 +6,8 @@ refer to "C:\Users\User\gel-blot-analyzer\BUILD_BRIEF.md"
 
 - Language/framework: Python 3.13, Flask + SQLAlchemy (SQLite), vanilla JS/SVG frontend, PyTorch for the band-detection model.
 - Install: `pip install -r requirements.txt`
-- Run: `KMP_DUPLICATE_LIB_OK=TRUE python -m app.server` (serves on :5000; the env var works around a Windows/conda OpenMP double-init warning-as-error)
+- Run: `KMP_DUPLICATE_LIB_OK=TRUE python -m app.server` (serves on :5000; the env var works around a Windows/conda OpenMP double-init warning-as-error). Debugger off unless `GEL_DEBUG=1`; never enable it on a public server.
+- Deploy: Hugging Face Docker Space from the repo root (`Dockerfile`, README front matter). Production entry point is `gunicorn app.wsgi:app` (one worker: rate limiter, retention thread and models are per process). `GEL_STORAGE_DIR` moves the database and uploads.
 - Test: `KMP_DUPLICATE_LIB_OK=TRUE python -m pytest tests/ -q`
 - Lint/typecheck: none configured yet.
 - Train the band-detection model (offline, not part of the runtime server): `python -m app.training.train --epochs 25 --batch-size 8 --synth-per-epoch 300`. Writes `app/training/artifacts/band_detector.pt`, which `app/detection/ml_infer.py` loads lazily at inference time. Add `--resume` to continue from the existing checkpoint. A completed run writes `app/training/artifacts/training_record.json`; if that file is missing or stale, the checkpoint came from an interrupted run.

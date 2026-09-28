@@ -82,6 +82,15 @@ Suggested structure (names indicative, not prescriptive):
   - The classical intensity-profile method may still be used internally as
     part of post-processing (e.g. refining a box to the actual peak) but is
     not the primary detection mechanism.
+  - **Model choice (revised after benchmarking):** the default runtime
+    detector is a YOLO11n box detector (Ultralytics, AGPL-3.0) trained on the
+    same synthetic + GelGenie data; the U-Net segmentation path remains as a
+    fallback when ultralytics isn't installed. Chosen by end-to-end band F1
+    on 25 unseen gels from other labs: YOLO 0.848, U-Net 0.449, GelGenie's
+    released models 0.66-0.73 (app/training/benchmark.py,
+    compare_gelgenie.py). A run with more data, 1024 px input and longer
+    training scored higher on familiar gels but lower on unseen ones, so the
+    simpler model ships.
   - Low-confidence bands are still shown, visually flagged (e.g. dashed/
     different-color outline) rather than hidden — the scientist decides
     whether to keep or delete them via the overlay editor.
@@ -163,6 +172,31 @@ the UI shows what the common path needs and reveals the rest on demand.
   "Ladder lane" picker, replacing the per-lane ladder buttons.
 - **Errors** show as an inline message, not a browser alert().
 
+## Public deployment (Hugging Face Spaces)
+
+Released as open source under AGPL-3.0 (required by Ultralytics YOLO) and
+hosted as a Docker Space.
+
+- **Server:** gunicorn, never the Flask development server or its debugger
+  (the Werkzeug debugger allows remote code execution). Port from `PORT`
+  (7860 on Spaces). Client IPs come from `X-Forwarded-For` behind the proxy.
+- **Upload limits:** at most 25 MB per file and 20 files per upload; larger
+  requests are rejected with a clear message before any processing.
+- **Rate limiting:** per client IP, 10 uploads per 10 minutes and 300
+  requests of any kind per minute; over the limit returns 429 with a message
+  saying when to retry. In-memory, per process: good enough for one Space.
+- **Retention:** projects and their files are deleted 30 days after their last
+  change, checked when the server starts and then hourly.
+- **Privacy note:** the upload page says images are stored on the server,
+  that anyone with a project's link can view and edit it, and that projects
+  are deleted after 30 days of inactivity.
+- **Storage:** `GEL_STORAGE_DIR` sets where the database and uploads live
+  (`/data` when the Space has persistent storage; otherwise the container's
+  disk, which is wiped on restart).
+- **Licences and credits:** repository `LICENSE` is AGPL-3.0; the README
+  credits the GelGenie dataset (CC-BY-4.0, Dunn Lab, University of
+  Edinburgh), Ultralytics YOLO (AGPL-3.0) and the vendored design skills.
+
 ## Edge cases
 
 - **Zero bands detected:** show the image with no boxes; user can manually
@@ -171,7 +205,8 @@ the UI shows what the common path needs and reveals the rest on demand.
   after upload (best-effort heuristic check), but still allow them to proceed
   — don't hard-block.
 - **Unsupported file type:** reject with a clear message. Accept common raster
-  image formats (PNG, JPG/JPEG, TIFF). No explicit file-size cap for V1.
+  image formats (PNG, JPG/JPEG, TIFF). The public deployment caps uploads at
+  25 MB per file and 20 files per upload (see Public deployment).
 - **Overlapping/touching bands in a lane:** the model may merge or split these
   incorrectly; this is expected to require manual correction via the overlay
   editor (add/delete/resize), not a special algorithmic case.
@@ -233,3 +268,9 @@ the UI shows what the common path needs and reveals the rest on demand.
     outputs a diagnosis/classification/phenotype label based on comparing a
     new sample against it. This should be verifiable by inspecting the
     codebase for any such comparison-to-label logic — there should be none.
+15. The deployed server runs without debug mode and rejects a file over
+    25 MB, or more than 20 files, with a clear message and no processing.
+16. A client exceeding the upload rate limit gets a 429 with a retry message.
+17. Projects untouched for 30 days are deleted along with their files.
+18. The upload page shows the privacy note; the repository carries an
+    AGPL-3.0 LICENSE and credits GelGenie and Ultralytics.

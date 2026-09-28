@@ -1,0 +1,19 @@
+{
+  "finished_at": "2026-09-24T13:31:50+00:00",
+  "run_completed": true,
+  "args": {
+    "epochs": 25,
+    "batch_size": 8,
+    "synth_per_epoch": 300,
+    "lr": 0.001,
+    "resume": true
+  },
+  "best_epoch": 23,
+  "val_dice": 0.8011427902160807,
+  "val_dice_on": "real",
+  "dice": {
+    "synthetic_val": 0.9655576229095459,
+    "real_val": 0.801142804166104,
+    "real_test": 0.7995162653923035
+  }
+}

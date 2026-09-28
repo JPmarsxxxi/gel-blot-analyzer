@@ -1,0 +1,38 @@
+{
+  "name": "baseline",
+  "split": "external",
+  "overall": {
+    "images": 25,
+    "ref_bands": 1357,
+    "band_recall": 0.4355,
+    "band_precision": 0.4636,
+    "band_f1": 0.4491,
+    "merged_bands": 16,
+    "lanes": {
+      "ref": 260,
+      "spurious": 11,
+      "missed": 64,
+      "merged": 24,
+      "all_right": 12
+    },
+    "seconds_per_image": 5.01
+  },
+  "by_subset": {
+    "external_gels": {
+      "images": 25,
+      "ref_bands": 1357,
+      "band_recall": 0.4355,
+      "band_precision": 0.4636,
+      "band_f1": 0.4491,
+      "merged_bands": 16,
+      "lanes": {
+        "ref": 260,
+        "spurious": 11,
+        "missed": 64,
+        "merged": 24,
+        "all_right": 12
+      },
+      "seconds_per_image": 5.01
+    }
+  }
+}

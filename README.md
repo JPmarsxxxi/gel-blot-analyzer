@@ -62,11 +62,22 @@ Production uses gunicorn: `gunicorn --workers 1 --threads 4 app.wsgi:app`.
 
 ## Deploy to Hugging Face Spaces
 
-1. Create a Space with the **Docker** SDK.
-2. Push this repository to it:
-   `git remote add space https://huggingface.co/spaces/<you>/<space>` and
-   `git push space HEAD:main`.
-3. Optional: attach persistent storage so projects survive restarts; the app
+1. Create a Space at huggingface.co/new-space: choose the **Docker** SDK
+   (Blank template), licence `agpl-3.0`, the free CPU hardware.
+2. Create an access token with write permission (Settings, Access Tokens).
+3. From a clone of this repository, upload it to the Space:
+
+   ```bash
+   pip install -U huggingface_hub
+   hf auth login                     # paste the write token
+   hf upload <you>/<space> . . --repo-type=space --exclude ".git/*"
+   ```
+
+   Use the upload tool rather than `git push`: the Hub rejects binary files
+   (the model weights, screenshots) pushed without Git LFS, and the tool
+   handles them automatically. The Space then builds from the `Dockerfile`
+   (about 10 minutes the first time). Run the same command to update it.
+4. Optional: attach persistent storage so projects survive restarts; the app
    stores them in `/data` when it exists.
 
 The public app caps uploads at 25 MB per image and 20 images per upload,

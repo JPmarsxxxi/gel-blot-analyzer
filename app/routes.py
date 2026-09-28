@@ -5,7 +5,7 @@ import zipfile
 
 from flask import Blueprint, jsonify, request, send_file, send_from_directory, render_template
 
-from app.config import ALLOWED_EXTENSIONS, UPLOADS_DIR
+from app.config import ALLOWED_EXTENSIONS, MAX_FILE_BYTES, MAX_FILES_PER_UPLOAD, UPLOADS_DIR
 from app.detection import pipeline
 from app.detection.bands import recompute_percent_of_lane
 from app.detection.calibration import fit_calibration
@@ -49,7 +49,15 @@ def create_project():
     if not files or all(f.filename == "" for f in files):
         return _error("No images provided.")
 
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        return _error(f"Too many images: {len(files)}. Upload at most {MAX_FILES_PER_UPLOAD} at a time.", 413)
+
     for f in files:
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        if size > MAX_FILE_BYTES:
+            return _error(f"'{f.filename}' is {size / (1024 * 1024):.1f} MB. The limit is {MAX_FILE_BYTES // (1024 * 1024)} MB per image.", 413)
         if not _allowed(f.filename):
             return _error(
                 f"Unsupported file type: '{f.filename}'. Accepted: PNG, JPG/JPEG, TIFF.", 415

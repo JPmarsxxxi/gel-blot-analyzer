@@ -16,7 +16,7 @@
       <div class="dropzone-idle">
         <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         <span class="dropzone-title">Drop images here, or <u>browse</u></span>
-        <span class="dropzone-hint">PNG, JPG or TIFF (scanner TIFFs are fine). Add several gels at once if you like.</span>
+        <span class="dropzone-hint">PNG, JPG or TIFF (scanner TIFFs are fine). Up to 20 gels at once, 25 MB each.</span>
       </div>
       <div class="dropzone-busy" hidden>
         <span class="spinner" aria-hidden="true"></span>
@@ -31,7 +31,11 @@
       <li><strong>Check</strong><span>nudge any box that looks off, name your samples</span></li>
       <li><strong>Export</strong><span>a table, annotated image or PDF report</span></li>
     </ol>
+    <p class="privacy-note">Your images are stored on this server so you can come back to them. Anyone with a project's link can view and edit it, and projects are deleted after 30 days without changes.</p>
   </main>
+  <footer class="site-footer">
+    Open source under AGPL-3.0 &middot; <a href="https://github.com/JPmarsxxxi/gel-blot-analyzer">Source code</a>
+  </footer>
   <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
 </body>
 </html>

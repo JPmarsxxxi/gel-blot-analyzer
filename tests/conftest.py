@@ -16,6 +16,7 @@ from app.training.synth_data import generate_sample
 def client():
     app = create_app()
     app.testing = True
+    app.config["RATE_LIMITS"] = False
     with app.test_client() as c:
         yield c
 

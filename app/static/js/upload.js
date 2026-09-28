@@ -12,9 +12,26 @@ function setBusy(busy) {
   fileInput.disabled = busy;
 }
 
+const MAX_FILES = 20;
+const MAX_MB = 25;
+
+function showError(message) {
+  errorMsg.textContent = message;
+  errorMsg.hidden = false;
+}
+
 async function upload(files) {
   if (!files.length) return;
   errorMsg.hidden = true;
+  if (files.length > MAX_FILES) {
+    showError(`That's ${files.length} images. Upload at most ${MAX_FILES} at a time.`);
+    return;
+  }
+  const big = [...files].find((f) => f.size > MAX_MB * 1024 * 1024);
+  if (big) {
+    showError(`${big.name} is ${(big.size / 1024 / 1024).toFixed(1)} MB. The limit is ${MAX_MB} MB per image.`);
+    return;
+  }
   busyTitle.textContent = files.length === 1 ? "Finding bands…" : `Finding bands in ${files.length} images…`;
   setBusy(true);
 
@@ -29,8 +46,7 @@ async function upload(files) {
   } catch (err) {
     setBusy(false);
     fileInput.value = "";
-    errorMsg.textContent = err.message;
-    errorMsg.hidden = false;
+    showError(err.message);
   }
 }
 

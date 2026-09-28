@@ -7,6 +7,7 @@ copies the best weights to --out. Ultralytics is AGPL-3.0: fine for this
 experiment, but shipping it in a hosted product needs a licence decision.
 """
 import argparse
+import json
 import os
 import shutil
 
@@ -15,12 +16,12 @@ from app.training.yolo_data import OUT_DIR
 EXPERIMENTS_DIR = os.path.dirname(OUT_DIR)
 
 
-def run(epochs: int, patience: int, imgsz: int, batch: int, base: str, out: str) -> None:
+def run(epochs: int, patience: int, imgsz: int, batch: int, base: str, out: str, data_dir: str = OUT_DIR, name: str = "yolo_run", contrast: str | None = None) -> None:
     from ultralytics import YOLO
 
     model = YOLO(base)
     results = model.train(
-        data=os.path.join(OUT_DIR, "data.yaml"),
+        data=os.path.join(data_dir, "data.yaml"),
         epochs=epochs,
         patience=patience,
         imgsz=imgsz,
@@ -28,7 +29,7 @@ def run(epochs: int, patience: int, imgsz: int, batch: int, base: str, out: str)
         device="cpu",
         workers=2,
         project=EXPERIMENTS_DIR,
-        name="yolo_run",
+        name=name,
         exist_ok=True,
         single_cls=True,
         flipud=0.0,
@@ -41,6 +42,9 @@ def run(epochs: int, patience: int, imgsz: int, batch: int, base: str, out: str)
     )
     best = os.path.join(results.save_dir, "weights", "best.pt")
     shutil.copy(best, out)
+    # yolo_infer reads this to apply the same input pre-processing as training.
+    with open(os.path.splitext(out)[0] + ".json", "w") as f:
+        json.dump({"input_contrast": contrast, "imgsz": imgsz}, f)
     print(f"best weights -> {out}")
 
 
@@ -52,5 +56,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--base", default="yolo11n.pt")
     parser.add_argument("--out", default=os.path.join(EXPERIMENTS_DIR, "yolo_best.pt"))
+    parser.add_argument("--data-dir", default=OUT_DIR, help="dataset built by yolo_data.py")
+    parser.add_argument("--name", default="yolo_run")
+    parser.add_argument("--contrast", choices=["stretch", "clahe"], default=None, help="must match the --contrast the dataset was built with")
     args = parser.parse_args()
-    run(args.epochs, args.patience, args.imgsz, args.batch, args.base, args.out)
+    run(args.epochs, args.patience, args.imgsz, args.batch, args.base, args.out, args.data_dir, args.name, args.contrast)

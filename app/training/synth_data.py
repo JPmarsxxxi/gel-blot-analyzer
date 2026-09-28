@@ -153,3 +153,103 @@ def generate_sample(
 def generate_batch(n: int, seed: int | None = None) -> list[SynthSample]:
     base_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
     return [generate_sample(seed=base_seed + i) for i in range(n)]
+
+
+def _add_artifacts(img: np.ndarray, rng: np.random.Generator, dark_bands: bool) -> None:
+    """Dust, scratches and well marks: band-like distractors that are NOT bands
+    (left out of the mask), so the model learns to ignore them."""
+    h, w = img.shape
+    sign = -1.0 if dark_bands else 1.0
+    for _ in range(int(rng.integers(0, 40))):
+        y, x, r = rng.integers(0, h), rng.integers(0, w), rng.uniform(0.6, 2.5)
+        y0, y1, x0, x1 = max(0, int(y - r)), min(h, int(y + r) + 1), max(0, int(x - r)), min(w, int(x + r) + 1)
+        img[y0:y1, x0:x1] += sign * rng.uniform(20, 90) * rng.choice([-1.0, 1.0], p=[0.3, 0.7])
+    for _ in range(int(rng.integers(0, 3))):
+        x0, y0 = rng.uniform(0, w), rng.uniform(0, h)
+        length, angle = rng.uniform(0.1, 0.5) * w, rng.uniform(0, np.pi)
+        for t in np.linspace(0, 1, int(length)):
+            xx, yy = int(x0 + t * length * np.cos(angle)), int(y0 + t * length * np.sin(angle))
+            if 0 <= xx < w and 0 <= yy < h:
+                img[yy, xx] += sign * rng.uniform(15, 50)
+
+
+def generate_blot_sample(seed: int | None = None, style: str | None = None) -> SynthSample:
+    """Western-blot and protein-gel styles, unlike generate_sample's DNA gels:
+    the same protein sits at the same height across lanes with varying amount,
+    bands are flat-topped and may saturate, rows can "smile", and blots are
+    often cropped to strips."""
+    rng = np.random.default_rng(seed)
+    style = style or str(rng.choice(["western", "coomassie", "strip"]))
+    width = int(rng.integers(360, 900))
+    height = int(rng.integers(60, 180)) if style == "strip" else int(rng.integers(260, 640))
+    dark_bands = style != "western" or rng.random() < 0.7
+
+    base_bg = rng.uniform(170, 240) if dark_bands else rng.uniform(10, 60)
+    illum = _smooth_noise((height, width), sigma=max(width, height) / 5, rng=rng)
+    illum = (illum - illum.min()) / (illum.max() - illum.min() + 1e-9) * rng.uniform(5, 40)
+    blotch = _smooth_noise((height, width), sigma=rng.uniform(4, 15), rng=rng) * rng.uniform(0, 8)
+    img = np.full((height, width), base_bg) + illum + blotch
+
+    n_lanes = int(rng.integers(2, 16))
+    margin = width * rng.uniform(0.01, 0.08)
+    pitch = (width - 2 * margin) / n_lanes
+    lane_w = pitch * rng.uniform(0.6, 0.9)
+    n_rows = int(rng.integers(1, 3)) if style in ("western", "strip") else int(rng.integers(4, 14))
+    rows = np.sort(rng.uniform(0.08, 0.92, n_rows)) * height
+    band_h = height * (rng.uniform(0.08, 0.25) if style == "strip" else rng.uniform(0.012, 0.04))
+    smile = rng.uniform(-0.15, 0.25) * band_h
+    saturation = rng.uniform(60, 200)
+
+    signal = np.zeros((height, width))
+    mask = np.zeros((height, width), dtype=np.uint8)
+    lanes, bands = [], []
+    yy, xx = np.mgrid[0:height, 0:width]
+    for li in range(n_lanes):
+        center = margin + pitch * (li + 0.5) + rng.uniform(-0.05, 0.05) * pitch
+        lanes.append(SynthLane(x_start=max(0.0, center - lane_w / 2), x_end=min(float(width), center + lane_w / 2)))
+        for y in rows:
+            if rng.random() < 0.15:
+                continue
+            amount = rng.uniform(10, 260) * (rng.uniform(0.05, 0.4) if rng.random() < 0.2 else 1.0)
+            half_w = lane_w / 2 * rng.uniform(0.8, 1.0)
+            bx0, bx1 = int(max(0, center - half_w)), int(min(width, center + half_w))
+            by0, by1 = int(max(0, y - band_h * 2)), int(min(height, y + band_h * 2))
+            if bx1 <= bx0 or by1 <= by0:
+                continue
+            ly, lx = yy[by0:by1, bx0:bx1], xx[by0:by1, bx0:bx1]
+            u = (lx - center) / half_w
+            y_c = y + smile * (1 - u**2)
+            profile_x = np.clip(1.4 - np.abs(u) ** 4 * 1.4, 0, 1)
+            profile_y = np.exp(-((ly - y_c) ** 2) / (2 * (band_h / 2.4) ** 2))
+            band = amount * profile_x * profile_y
+            band = saturation * np.tanh(band / saturation)
+            signal[by0:by1, bx0:bx1] += band
+            fg = band > max(4.0, band.max() * 0.3)
+            if fg.any():
+                mask[by0:by1, bx0:bx1] |= fg.astype(np.uint8)
+                bands.append(SynthBand(lane_index=li, x=float(bx0), y=float(by0), width=float(bx1 - bx0), height=float(by1 - by0)))
+        if rng.random() < 0.2:
+            sx0, sx1 = int(max(0, center - lane_w * 0.3)), int(min(width, center + lane_w * 0.3))
+            signal[: int(height * 0.8), sx0:sx1] += rng.uniform(3, 15) * np.linspace(1, 0.1, int(height * 0.8))[:, None]
+
+    if style != "strip" and rng.random() < 0.5:
+        well_y = int(height * rng.uniform(0.01, 0.05))
+        for lane in lanes:
+            img[well_y:well_y + 3, int(lane.x_start):int(lane.x_end)] += (-1 if dark_bands else 1) * rng.uniform(20, 60)
+
+    img = img - signal if dark_bands else img + signal
+    _add_artifacts(img, rng, dark_bands)
+    img = np.clip(img + rng.normal(0, rng.uniform(1, 6), img.shape), 0, 255).astype(np.uint8)
+    return SynthSample(image=img, mask=mask, lanes=lanes, bands=bands, polarity="dark" if dark_bands else "bright")
+
+
+def generate_varied_sample(seed: int | None = None) -> SynthSample:
+    """Half DNA-gel style (with distractor artifacts added), half blot styles."""
+    rng = np.random.default_rng(seed)
+    if rng.random() < 0.5:
+        return generate_blot_sample(seed=None if seed is None else seed + 7_000_001)
+    sample = generate_sample(seed=None if seed is None else seed + 9_000_001)
+    img = sample.image.astype(np.float64)
+    _add_artifacts(img, rng, sample.polarity == "dark")
+    sample.image = np.clip(img, 0, 255).astype(np.uint8)
+    return sample

@@ -26,10 +26,10 @@ def _resize_pair(image: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.nd
     return np.array(img_im, dtype=np.uint8), (np.array(mask_im) > 127).astype(np.uint8)
 
 
-def _load_real_pairs(split: str) -> list[tuple[str, str]]:
+def _load_real_pairs(split: str, subsets: tuple[str, ...] = REAL_SUBSETS) -> list[tuple[str, str]]:
     subdir = {"train": ("images", "masks"), "val": ("val_images", "val_masks"), "test": ("test_images", "test_masks")}[split]
     pairs = []
-    for subset in REAL_SUBSETS:
+    for subset in subsets:
         img_dir = os.path.join(EXTERNAL_DATA_DIR, subset, subset, subdir[0])
         mask_dir = os.path.join(EXTERNAL_DATA_DIR, subset, subset, subdir[1])
         if not os.path.isdir(img_dir):

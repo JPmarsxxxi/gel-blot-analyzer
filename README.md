@@ -94,5 +94,7 @@ YOLO. If you run a modified version as a service, you must share its source.
   image analysis", Nature Communications 16 (2025),
   https://doi.org/10.1038/s41467-025-59189-0.
 - Band detector: Ultralytics YOLO11, AGPL-3.0.
+- Typeface: Instrument Sans, SIL Open Font License 1.1
+  (`app/static/fonts/OFL.txt`).
 - Design skills in `.claude/skills/`: Anthropic's frontend-design
   (Apache-2.0) and Leonxlnx's taste-skill (MIT).

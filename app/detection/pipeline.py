@@ -2,6 +2,7 @@
 ML inference, lane detection, and band detection. This is what the server
 routes call; nothing here touches the database.
 """
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -11,6 +12,20 @@ from app.detection.bands import DetectedBand, detect_bands_in_lane
 from app.detection.cache import get_gray_and_signal, invalidate
 from app.detection.gel_heuristic import looks_like_gel
 from app.detection.lanes import LaneBoundary, detect_lanes
+
+
+# "unet" (default) or "yolo"; the YOLO path needs ultralytics and a trained model.
+DETECTOR = os.environ.get("GEL_DETECTOR", "unet")
+
+
+def _bands_for_lanes(gray, signal, lanes, sensitivity, prob_mask=None, boxes=None):
+    if DETECTOR == "yolo":
+        from app.detection import yolo_infer
+
+        boxes = yolo_infer.predict_boxes(gray) if boxes is None else boxes
+        return [yolo_infer.bands_in_lane(signal, boxes, lane, sensitivity) for lane in lanes]
+    prob_mask = ml_infer.predict_band_probability(gray) if prob_mask is None else prob_mask
+    return [detect_bands_in_lane(signal, prob_mask, lane, sensitivity) for lane in lanes]
 
 
 @dataclass
@@ -23,10 +38,16 @@ class DetectionResult:
 def run_full_detection(path: str, sensitivity: float = 0.5) -> DetectionResult:
     rgb = imaging.load_rgb(path)
     gray, signal = get_gray_and_signal(path)
-    prob_mask = ml_infer.predict_band_probability(gray)
-    lanes = detect_lanes(prob_mask)
+    if DETECTOR == "yolo":
+        from app.detection import yolo_infer
 
-    bands_by_lane = [detect_bands_in_lane(signal, prob_mask, lane, sensitivity) for lane in lanes]
+        boxes = yolo_infer.predict_boxes(gray)
+        lanes = detect_lanes(yolo_infer.box_map(boxes, gray.shape))
+        bands_by_lane = _bands_for_lanes(gray, signal, lanes, sensitivity, boxes=boxes)
+    else:
+        prob_mask = ml_infer.predict_band_probability(gray)
+        lanes = detect_lanes(prob_mask)
+        bands_by_lane = _bands_for_lanes(gray, signal, lanes, sensitivity, prob_mask=prob_mask)
     is_gel = looks_like_gel(rgb, gray, lanes, signal)
 
     return DetectionResult(is_gel_like=is_gel, lanes=lanes, bands_by_lane=bands_by_lane)
@@ -38,8 +59,7 @@ def run_band_redetection(
     """Re-runs only band detection (e.g. sensitivity slider change), keeping
     the given (possibly user-adjusted) lane boundaries."""
     gray, signal = get_gray_and_signal(path)
-    prob_mask = ml_infer.predict_band_probability(gray)
-    return [detect_bands_in_lane(signal, prob_mask, lane, sensitivity) for lane in lanes]
+    return _bands_for_lanes(gray, signal, lanes, sensitivity)
 
 
 def get_signal(path: str) -> np.ndarray:

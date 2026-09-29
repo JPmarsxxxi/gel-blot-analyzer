@@ -3,38 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gel/Blot Analyzer</title>
+  <title>Gel Band Analyzer: automatic gel and blot band quantification</title>
+  <meta name="description" content="Upload a gel or western blot image. Lanes and bands are detected and measured automatically; check the boxes, name your samples and export a table or report. Free and open source.">
+  <meta property="og:title" content="Gel Band Analyzer">
+  <meta property="og:description" content="Automatic band detection and quantification for gels and western blots. No install, no manual box drawing.">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="upload-body">
+  <header class="site-header">
+    <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#0e7480"/><rect x="5" y="6" width="4" height="2" rx="1" fill="#bfeef0"/><rect x="5" y="10" width="4" height="2" rx="1" fill="#bfeef0"/><rect x="5" y="15" width="4" height="2" rx="1" fill="#bfeef0"/><rect x="10" y="9" width="4" height="3" rx="1" fill="#ffffff"/><rect x="15" y="7" width="4" height="2" rx="1" fill="#bfeef0"/><rect x="15" y="14" width="4" height="3" rx="1" fill="#ffffff"/></svg>Gel Band Analyzer</a>
+  </header>
+
   <main class="upload-page">
-    <h1>Measure your gel bands</h1>
-    <p class="subtitle">Drop in a gel or western blot image. Bands are found and measured for you &mdash; you just check them.</p>
+    <section class="intro">
+      <h1>Measure every band on your gel in seconds</h1>
+      <p class="subtitle">Drop in a gel or western blot. Lanes and bands are found and measured automatically, so you only check the result instead of drawing boxes by hand.</p>
+    </section>
 
-    <label class="dropzone" id="dropzone">
-      <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.tif,.tiff" multiple>
-      <div class="dropzone-idle">
-        <svg class="dropzone-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        <span class="dropzone-title">Drop images here, or <u>browse</u></span>
-        <span class="dropzone-hint">PNG, JPG or TIFF (scanner TIFFs are fine). Up to 20 gels at once, 25 MB each.</span>
-      </div>
-      <div class="dropzone-busy" hidden>
-        <span class="spinner" aria-hidden="true"></span>
-        <span class="dropzone-title" id="busy-title">Finding bands&hellip;</span>
-        <span class="dropzone-hint">Usually a few seconds per image.</span>
-      </div>
-    </label>
-    <p id="error-msg" class="error" role="alert" hidden></p>
+    <section class="details">
+      <ol class="steps">
+        <li><strong>Upload</strong>lanes and bands are detected for you</li>
+        <li><strong>Check</strong>nudge any box that looks off and name your samples</li>
+        <li><strong>Export</strong>a table, annotated images or a PDF report</li>
+      </ol>
+      <p class="privacy-note">Your images are stored on this server so you can come back to them. Anyone with a project's link can view and edit it, and projects are deleted after 30 days without changes.</p>
+    </section>
 
-    <ol class="steps">
-      <li><strong>Upload</strong><span>lanes and bands are detected automatically</span></li>
-      <li><strong>Check</strong><span>nudge any box that looks off, name your samples</span></li>
-      <li><strong>Export</strong><span>a table, annotated image or PDF report</span></li>
-    </ol>
-    <p class="privacy-note">Your images are stored on this server so you can come back to them. Anyone with a project's link can view and edit it, and projects are deleted after 30 days without changes.</p>
+    <div class="drop-area">
+      <label class="tray" id="dropzone">
+        <input type="file" id="file-input" accept=".png,.jpg,.jpeg,.tif,.tiff" multiple>
+        <svg class="tray-gel" viewBox="0 0 320 190" aria-hidden="true">
+            <rect class="slab" width="320" height="190" rx="10"/>
+            <rect class="well" x="28" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="26" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="68" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="66" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="108" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="106" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="148" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="146" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="188" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="186" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="228" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="226" y="26" width="28" height="152" rx="3"/>
+            <rect class="well" x="268" y="12" width="24" height="8" rx="1.5"/>
+            <rect class="lane" x="266" y="26" width="28" height="152" rx="3"/>
+            <g><rect class="band" x="28" y="44" width="24" height="4" rx="2"/><rect class="band" x="28" y="56" width="24" height="4" rx="2"/><rect class="band" x="28" y="68" width="24" height="4" rx="2"/><rect class="band" x="28" y="82" width="24" height="4" rx="2"/><rect class="band" x="28" y="98" width="24" height="4" rx="2"/><rect class="band" x="28" y="118" width="24" height="4" rx="2"/><rect class="band" x="28" y="142" width="24" height="4" rx="2"/><rect class="band" x="28" y="162" width="24" height="4" rx="2"/><rect class="band" x="68" y="70" width="24" height="6" rx="2"/><rect class="band" x="68" y="118" width="24" height="6" rx="2"/><rect class="band" x="108" y="70" width="24" height="6" rx="2"/><rect class="band" x="108" y="104" width="24" height="6" rx="2"/><rect class="band" x="108" y="150" width="24" height="6" rx="2"/><rect class="band" x="148" y="82" width="24" height="6" rx="2"/><rect class="band" x="148" y="118" width="24" height="6" rx="2"/><rect class="band" x="188" y="64" width="24" height="6" rx="2"/><rect class="band" x="188" y="98" width="24" height="6" rx="2"/><rect class="band" x="188" y="130" width="24" height="6" rx="2"/><rect class="band" x="188" y="158" width="24" height="6" rx="2"/><rect class="band" x="228" y="118" width="24" height="6" rx="2"/><rect class="band" x="268" y="70" width="24" height="6" rx="2"/><rect class="band" x="268" y="142" width="24" height="6" rx="2"/></g>
+          </svg>
+        <div class="dropzone-idle">
+          <span class="dropzone-title">Drop gel images here, or <u>browse</u></span>
+          <span class="dropzone-hint">PNG, JPG or TIFF, including 16-bit scanner TIFFs. Up to 20 at once, 25 MB each.</span>
+        </div>
+        <div class="dropzone-busy" hidden>
+          <span class="dropzone-title" id="busy-title">Finding bands&hellip;</span>
+          <span class="dropzone-hint">Usually a few seconds per image.</span>
+        </div>
+      </label>
+      <p id="error-msg" class="error" role="alert" hidden></p>
+    </div>
   </main>
+
   <footer class="site-footer">
-    Open source under AGPL-3.0 &middot; <a href="https://github.com/JPmarsxxxi/gel-blot-analyzer">Source code</a>
+    Free and open source under AGPL-3.0. <a href="https://github.com/JPmarsxxxi/gel-blot-analyzer">Source code</a>
   </footer>
   <script src="{{ url_for('static', filename='js/upload.js') }}"></script>
 </body>

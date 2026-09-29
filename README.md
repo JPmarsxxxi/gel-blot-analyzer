@@ -60,25 +60,14 @@ python -m app.server            # http://localhost:5000 (GEL_DEBUG=1 for the deb
 
 Production uses gunicorn: `gunicorn --workers 1 --threads 4 app.wsgi:app`.
 
-## Deploy to Hugging Face Spaces
+## Deploy
 
-1. Create a Space at huggingface.co/new-space: choose the **Docker** SDK
-   (Blank template), licence `agpl-3.0`, the free CPU hardware.
-2. Create an access token with write permission (Settings, Access Tokens).
-3. From a clone of this repository, upload it to the Space:
+The app ships as a Docker image (`Dockerfile`). To host it for free on an
+Oracle Cloud server with HTTPS, follow [deploy/oracle.md](deploy/oracle.md):
+create the server, open ports 80 and 443, then run one command on it.
 
-   ```bash
-   pip install -U huggingface_hub
-   hf auth login                     # paste the write token
-   hf upload <you>/<space> . . --repo-type=space --exclude ".git/*"
-   ```
-
-   Use the upload tool rather than `git push`: the Hub rejects binary files
-   (the model weights, screenshots) pushed without Git LFS, and the tool
-   handles them automatically. The Space then builds from the `Dockerfile`
-   (about 10 minutes the first time). Run the same command to update it.
-4. Optional: attach persistent storage so projects survive restarts; the app
-   stores them in `/data` when it exists.
+It also runs as a Hugging Face Docker Space (the front matter above), which
+needs a paid Hugging Face plan.
 
 The public app caps uploads at 25 MB per image and 20 images per upload,
 rate-limits each IP, and deletes projects 30 days after their last change.

@@ -172,10 +172,11 @@ the UI shows what the common path needs and reveals the rest on demand.
   "Ladder lane" picker, replacing the per-lane ladder buttons.
 - **Errors** show as an inline message, not a browser alert().
 
-## Public deployment (Hugging Face Spaces)
+## Public deployment
 
 Released as open source under AGPL-3.0 (required by Ultralytics YOLO) and
-hosted as a Docker Space.
+hosted as a Docker container: on an Oracle Cloud Always Free server behind
+Caddy for HTTPS (`deploy/oracle-setup.sh`), or as a Hugging Face Docker Space.
 
 - **Server:** gunicorn, never the Flask development server or its debugger
   (the Werkzeug debugger allows remote code execution). Port from `PORT`
@@ -191,7 +192,8 @@ hosted as a Docker Space.
   that anyone with a project's link can view and edit it, and that projects
   are deleted after 30 days of inactivity.
 - **Storage:** `GEL_STORAGE_DIR` sets where the database and uploads live
-  (`/data` when the Space has persistent storage; otherwise the container's
+  (`/data` when mounted: the server's `/srv/gel-data` on Oracle, persistent
+  storage on a Space; otherwise the container's
   disk, which is wiped on restart).
 - **Licences and credits:** repository `LICENSE` is AGPL-3.0; the README
   credits the GelGenie dataset (CC-BY-4.0, Dunn Lab, University of

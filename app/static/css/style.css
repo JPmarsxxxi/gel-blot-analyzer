@@ -101,6 +101,29 @@ kbd {
 
 /* ---------- upload page ---------- */
 
+.cells {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  opacity: 0.28;
+  pointer-events: none;
+}
+.cells .wall { fill: none; stroke: #2a6a64; stroke-width: 2.5; stroke-opacity: 0.7; }
+.cells .bubble { fill: #d9eeea; stroke: #3c8279; stroke-width: 1.2; }
+.drift { animation: drift 70s ease-in-out infinite alternate; }
+.drift-b { animation-duration: 95s; animation-delay: -30s; animation-name: drift-b; }
+.drift-c { animation-duration: 120s; animation-delay: -60s; }
+@keyframes drift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-46px, 34px); }
+}
+@keyframes drift-b {
+  from { transform: translate(0, 0); }
+  to { transform: translate(38px, -28px); }
+}
+
 .site-header { max-width: 1120px; margin: 0 auto; padding: 22px 24px 0; }
 
 .upload-page {
@@ -533,6 +556,7 @@ kbd {
 }
 
 @media (max-width: 600px) {
+  .cells { display: none; }
   .site-header, .upload-page, .site-footer { padding-left: 16px; padding-right: 16px; }
   .topbar, .gel-tabs, #workspace { padding-left: 16px; padding-right: 16px; }
   .legend { margin-left: 0; }

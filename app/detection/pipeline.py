@@ -30,11 +30,11 @@ def _default_detector() -> str:
 DETECTOR = os.environ.get("GEL_DETECTOR") or _default_detector()
 
 
-def _bands_for_lanes(gray, signal, lanes, sensitivity, prob_mask=None, boxes=None):
+def _bands_for_lanes(gray, signal, polarity, lanes, sensitivity, prob_mask=None, boxes=None):
     if DETECTOR == "yolo":
         from app.detection import yolo_infer
 
-        boxes = yolo_infer.predict_boxes(gray) if boxes is None else boxes
+        boxes = yolo_infer.predict_boxes(gray, polarity) if boxes is None else boxes
         return [yolo_infer.bands_in_lane(signal, boxes, lane, sensitivity) for lane in lanes]
     prob_mask = ml_infer.predict_band_probability(gray) if prob_mask is None else prob_mask
     return [detect_bands_in_lane(signal, prob_mask, lane, sensitivity) for lane in lanes]
@@ -49,17 +49,17 @@ class DetectionResult:
 
 def run_full_detection(path: str, sensitivity: float = 0.5) -> DetectionResult:
     rgb = imaging.load_rgb(path)
-    gray, signal = get_gray_and_signal(path)
+    gray, signal, polarity = get_gray_and_signal(path)
     if DETECTOR == "yolo":
         from app.detection import yolo_infer
 
-        boxes = yolo_infer.predict_boxes(gray)
+        boxes = yolo_infer.predict_boxes(gray, polarity)
         lanes = detect_lanes(yolo_infer.box_map(boxes, gray.shape))
-        bands_by_lane = _bands_for_lanes(gray, signal, lanes, sensitivity, boxes=boxes)
+        bands_by_lane = _bands_for_lanes(gray, signal, polarity, lanes, sensitivity, boxes=boxes)
     else:
         prob_mask = ml_infer.predict_band_probability(gray)
         lanes = detect_lanes(prob_mask)
-        bands_by_lane = _bands_for_lanes(gray, signal, lanes, sensitivity, prob_mask=prob_mask)
+        bands_by_lane = _bands_for_lanes(gray, signal, polarity, lanes, sensitivity, prob_mask=prob_mask)
     is_gel = looks_like_gel(rgb, gray, lanes, signal)
 
     return DetectionResult(is_gel_like=is_gel, lanes=lanes, bands_by_lane=bands_by_lane)
@@ -70,12 +70,12 @@ def run_band_redetection(
 ) -> list[list[DetectedBand]]:
     """Re-runs only band detection (e.g. sensitivity slider change), keeping
     the given (possibly user-adjusted) lane boundaries."""
-    gray, signal = get_gray_and_signal(path)
-    return _bands_for_lanes(gray, signal, lanes, sensitivity)
+    gray, signal, polarity = get_gray_and_signal(path)
+    return _bands_for_lanes(gray, signal, polarity, lanes, sensitivity)
 
 
 def get_signal(path: str) -> np.ndarray:
-    _, signal = get_gray_and_signal(path)
+    _, signal, _ = get_gray_and_signal(path)
     return signal
 
 

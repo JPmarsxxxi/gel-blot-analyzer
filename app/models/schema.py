@@ -56,6 +56,8 @@ class GelImage(Base):
     sensitivity: Mapped[float] = mapped_column(Float, default=0.5)  # 0..1 detection threshold slider
 
     is_gel_like: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Cropped to the membrane on upload (app/detection/membrane.py); source_filename keeps the full frame.
+    auto_cropped: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

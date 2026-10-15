@@ -15,6 +15,9 @@ masks; each connected component is one reference band.
 
 --split external scores the 25 GelGenie external_gels from five other labs,
 never used for training or tuning: the closest proxy for gels found online.
+--split westerns scores 30 hand-labelled western blots (westerns_paper,
+westerns_chemidoc under external_data; see their LABELLING.md). Never tune
+on them either.
 
 Writes app/training/artifacts/benchmarks/NAME_SPLIT.json.
 """
@@ -92,6 +95,15 @@ def _external_pairs() -> list[tuple[str, str]]:
     return [(os.path.join(root, "images", n), os.path.join(root, "masks", os.path.splitext(n)[0] + ".tif")) for n in names]
 
 
+def _western_pairs() -> list[tuple[str, str]]:
+    pairs = []
+    for subset in ("westerns_paper", "westerns_chemidoc"):
+        root = os.path.join(EXTERNAL_DATA_DIR, subset)
+        names = sorted(os.listdir(os.path.join(root, "images"))) if os.path.isdir(root) else []
+        pairs += [(os.path.join(root, "images", n), os.path.join(root, "masks", os.path.splitext(n)[0] + ".tif")) for n in names]
+    return pairs
+
+
 def main(name: str, split: str) -> None:
     # A missing candidate model would silently fall back to the classical
     # heuristic and produce meaningless scores.
@@ -99,7 +111,9 @@ def main(name: str, split: str) -> None:
         if os.environ.get(var) and not os.path.exists(os.environ[var]):
             raise SystemExit(f"{var}={os.environ[var]} does not exist")
     per_subset: dict[str, list[dict]] = {}
-    pairs = _external_pairs() if split == "external" else _load_real_pairs(split)
+    pairs = {"external": _external_pairs, "westerns": _western_pairs}.get(split, lambda: _load_real_pairs(split))()
+    if not pairs:
+        raise SystemExit(f"no images found for split {split}")
     for img_path, mask_path in pairs:
         subset = img_path.split("external_data" + os.sep)[-1].split(os.sep)[0]
         per_subset.setdefault(subset, []).append(score_image(img_path, mask_path))
@@ -123,6 +137,6 @@ def main(name: str, split: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", required=True)
-    parser.add_argument("--split", choices=["val", "test", "external"], default="test")
+    parser.add_argument("--split", choices=["val", "test", "external", "westerns"], default="test")
     args = parser.parse_args()
     main(args.name, args.split)

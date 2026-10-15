@@ -169,7 +169,7 @@ class GelPanel {
     this.svg.classList.toggle("adding", mode === "add-band" || mode === "add-lane");
     this.svg.classList.toggle("cropping", mode === "crop");
     const hints = {
-      "add-band": "Click on a band in the image to add a box there. Press Esc when you're done.",
+      "add-band": "Drag a box around a band, or click on one to add a box there. Press Esc when you're done.",
       "add-lane": "Click where a lane was missed to add it, or inside a lane that holds two to split it there.",
       crop: "Drag a rectangle around the part of the image to keep, then press Apply.",
     };
@@ -300,12 +300,11 @@ class GelPanel {
       return;
     }
 
-    if (this.mode === "add-band") {
+    const onBand = ["band-box", "band-handle", "band-delete-hit"].some((c) => target.classList.contains(c));
+    if (this.mode === "add-band" && !onBand) {
       const lane = this.image.lanes.find((l) => pt.x >= l.x_start && pt.x <= l.x_end);
       if (!lane) return;
-      const h = Math.max(10, this.image.height * 0.03);
-      const w = (lane.x_end - lane.x_start) * 0.6;
-      this._createBand(lane.id, { x: pt.x - w / 2, y: pt.y - h / 2, width: w, height: h });
+      this.drag = { type: "band-draw", lane, start: pt };
       return;
     }
 
@@ -314,7 +313,7 @@ class GelPanel {
       this.deleteBand(bandId);
     } else if (target.classList.contains("band-handle")) {
       const band = this._findBand(bandId);
-      this.drag = { type: "resize", band, start: pt, origW: band.width, origH: band.height };
+      this.drag = { type: "resize", band, dir: target.dataset.dir, start: pt };
     } else if (target.classList.contains("band-box")) {
       if (String(this.selectedBandId) !== bandId) this.select(bandId);
       const band = this._findBand(bandId);
@@ -339,14 +338,37 @@ class GelPanel {
         h: Math.abs(pt.y - drag.start.y),
       };
       this._drawCropRect();
+    } else if (drag.type === "band-draw") {
+      drag.rect = {
+        x: Math.min(drag.start.x, pt.x),
+        y: Math.min(drag.start.y, pt.y),
+        width: Math.abs(pt.x - drag.start.x),
+        height: Math.abs(pt.y - drag.start.y),
+      };
+      this._drawBandDraft(drag.rect);
     } else if (drag.type === "move") {
       drag.newX = drag.origX + pt.x - drag.start.x;
       drag.newY = drag.origY + pt.y - drag.start.y;
       this._placeBandShapes(drag.band.id, drag.newX, drag.newY, drag.band.width, drag.band.height);
     } else if (drag.type === "resize") {
-      drag.newW = Math.max(5, drag.origW + pt.x - drag.start.x);
-      drag.newH = Math.max(5, drag.origH + pt.y - drag.start.y);
-      this._placeBandShapes(drag.band.id, drag.band.x, drag.band.y, drag.newW, drag.newH);
+      const { dir, band } = drag;
+      const dx = pt.x - drag.start.x;
+      const dy = pt.y - drag.start.y;
+      let { x, y, width: w, height: h } = band;
+      if (dir.includes("e")) w = Math.max(5, w + dx);
+      if (dir.includes("s")) h = Math.max(5, h + dy);
+      if (dir.includes("w")) {
+        const nw = Math.max(5, w - dx);
+        x += w - nw;
+        w = nw;
+      }
+      if (dir.includes("n")) {
+        const nh = Math.max(5, h - dy);
+        y += h - nh;
+        h = nh;
+      }
+      drag.box = { x, y, width: w, height: h };
+      this._placeBandShapes(band.id, x, y, w, h);
     } else if (drag.type === "divider") {
       drag.newX = pt.x;
       for (const line of this.svg.querySelectorAll(`[data-left-lane-id="${drag.leftId}"]`)) {
@@ -361,12 +383,26 @@ class GelPanel {
     const drag = this.drag;
     this.drag = null;
 
+    if (drag.type === "band-draw") {
+      this._drawBandDraft(null);
+      if (drag.rect && drag.rect.width >= 4 && drag.rect.height >= 3) {
+        this._createBand(drag.lane.id, drag.rect);
+      } else {
+        const lane = drag.lane;
+        const h = Math.max(10, this.image.height * 0.03);
+        // A lane can span the whole image, so cap the click-to-add width at a typical band.
+        const w = Math.min((lane.x_end - lane.x_start) * 0.6, Math.max(24, this.image.width * 0.06));
+        this._createBand(lane.id, { x: drag.start.x - w / 2, y: drag.start.y - h / 2, width: w, height: h });
+      }
+      return;
+    }
+
     try {
       if (drag.type === "move" && drag.newX !== undefined) {
         this._patchLane(await api(`/api/bands/${drag.band.id}`, jsonBody("PATCH", { x: drag.newX, y: drag.newY })));
         this.render();
-      } else if (drag.type === "resize" && drag.newW !== undefined) {
-        this._patchLane(await api(`/api/bands/${drag.band.id}`, jsonBody("PATCH", { width: drag.newW, height: drag.newH })));
+      } else if (drag.type === "resize" && drag.box) {
+        this._patchLane(await api(`/api/bands/${drag.band.id}`, jsonBody("PATCH", drag.box)));
         this.render();
       } else if (drag.type === "divider" && drag.newX !== undefined) {
         this._patchLane(await api(`/api/lanes/${drag.leftId}`, jsonBody("PATCH", { x_end: drag.newX })));
@@ -521,10 +557,15 @@ class GelPanel {
 
     // Edit controls only on the selected band: on a busy gel, per-band controls bury the image.
     if (selected) {
-      const r = Math.max(5, img.width * 0.007);
-      this._svgEl("circle", { class: "band-handle", r, "data-band-id": selected.id });
+      // Size controls in screen pixels: small images are scaled up a lot for display.
+      const shown = this.svg.getBoundingClientRect().width;
+      const r = 4 * (shown ? img.width / shown : 1);
+      // No "ne" handle: the delete button sits on that corner.
+      for (const dir of ["nw", "n", "w", "sw", "s", "se", "e"]) {
+        this._svgEl("circle", { class: "band-handle", r, "data-band-id": selected.id, "data-dir": dir });
+      }
       const del = this._svgEl("g", { class: "band-delete", "data-band-id": selected.id });
-      this._svgEl("circle", { class: "band-delete-hit", r: r * 1.3, "data-band-id": selected.id }, del);
+      this._svgEl("circle", { class: "band-delete-hit", r: r * 1.6, "data-band-id": selected.id }, del);
       const text = this._svgEl("text", { "font-size": r * 2, "data-band-id": selected.id }, del);
       text.textContent = "×";
       this._placeBandShapes(selected.id, selected.x, selected.y, selected.width, selected.height);
@@ -541,13 +582,19 @@ class GelPanel {
       rect.setAttribute("width", w);
       rect.setAttribute("height", h);
     }
-    const handle = this.svg.querySelector(`circle.band-handle[data-band-id="${bandId}"]`);
-    if (handle) {
-      handle.setAttribute("cx", x + w);
-      handle.setAttribute("cy", y + h);
+    for (const handle of this.svg.querySelectorAll(`circle.band-handle[data-band-id="${bandId}"]`)) {
+      const dir = handle.dataset.dir;
+      handle.setAttribute("cx", dir.includes("w") ? x : dir.includes("e") ? x + w : x + w / 2);
+      handle.setAttribute("cy", dir.includes("n") ? y : dir.includes("s") ? y + h : y + h / 2);
     }
     const del = this.svg.querySelector(`g.band-delete[data-band-id="${bandId}"]`);
     if (del) del.setAttribute("transform", `translate(${x + w}, ${y})`);
+  }
+
+  _drawBandDraft(rect) {
+    const existing = this.svg.querySelector("rect.band-draft");
+    if (existing) existing.remove();
+    if (rect) this._svgEl("rect", { class: "crop-rect band-draft", ...rect });
   }
 
   _drawCropRect() {

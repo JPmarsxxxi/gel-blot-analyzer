@@ -7,36 +7,36 @@
       "mean_abs_diff_vs_human_pp": null
     },
     "ours_yolo": {
-      "median_cv_pct_of_lane": 7.6,
+      "median_cv_pct_of_lane": 7.9,
       "band_rows": 239,
       "coverage": 0.965,
-      "mean_abs_diff_vs_human_pp": 0.57
+      "mean_abs_diff_vs_human_pp": 0.5
     },
     "gelgenie_sharp": {
       "median_cv_pct_of_lane": 7.5,
       "band_rows": 239,
       "coverage": 0.934,
-      "mean_abs_diff_vs_human_pp": 0.4
+      "mean_abs_diff_vs_human_pp": 0.35
     }
   },
   "NEB": {
     "human": {
-      "median_cv_pct_of_lane": 7.9,
+      "median_cv_pct_of_lane": 7.6,
       "band_rows": 245,
       "coverage": 1.0,
       "mean_abs_diff_vs_human_pp": null
     },
     "ours_yolo": {
-      "median_cv_pct_of_lane": 9.1,
+      "median_cv_pct_of_lane": 8.4,
       "band_rows": 245,
       "coverage": 0.942,
-      "mean_abs_diff_vs_human_pp": 0.55
+      "mean_abs_diff_vs_human_pp": 0.46
     },
     "gelgenie_sharp": {
-      "median_cv_pct_of_lane": 7.5,
+      "median_cv_pct_of_lane": 7.3,
       "band_rows": 245,
       "coverage": 0.934,
-      "mean_abs_diff_vs_human_pp": 0.42
+      "mean_abs_diff_vs_human_pp": 0.26
     }
   }
 }

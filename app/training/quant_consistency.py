@@ -77,7 +77,7 @@ def _gel_bands(gt: np.ndarray):
 
 def _measure_gel(img_path: str, mask_path: str, yolo_boxes, gg_mask: np.ndarray) -> dict:
     gt = np.asarray(Image.open(mask_path)) > 0
-    _, signal = get_gray_and_signal(img_path)
+    _, signal, _ = get_gray_and_signal(img_path)
     lab, lanes = _gel_bands(gt)
     gg_lab, _ = label(gg_mask)
     all_cents = [(cy, cx) for _, bands in lanes for _, cy, cx in bands]

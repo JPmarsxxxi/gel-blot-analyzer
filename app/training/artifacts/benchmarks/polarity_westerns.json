@@ -1,0 +1,54 @@
+{
+  "name": "polarity",
+  "split": "westerns",
+  "overall": {
+    "images": 30,
+    "ref_bands": 296,
+    "band_recall": 0.8581,
+    "band_precision": 0.7293,
+    "band_f1": 0.7885,
+    "merged_bands": 2,
+    "lanes": {
+      "ref": 140,
+      "spurious": 1,
+      "missed": 23,
+      "merged": 5,
+      "all_right": 15
+    },
+    "seconds_per_image": 0.88
+  },
+  "by_subset": {
+    "westerns_chemidoc": {
+      "images": 10,
+      "ref_bands": 66,
+      "band_recall": 0.8939,
+      "band_precision": 0.7108,
+      "band_f1": 0.7919,
+      "merged_bands": 0,
+      "lanes": {
+        "ref": 28,
+        "spurious": 0,
+        "missed": 1,
+        "merged": 0,
+        "all_right": 9
+      },
+      "seconds_per_image": 0.63
+    },
+    "westerns_paper": {
+      "images": 20,
+      "ref_bands": 230,
+      "band_recall": 0.8478,
+      "band_precision": 0.7351,
+      "band_f1": 0.7874,
+      "merged_bands": 2,
+      "lanes": {
+        "ref": 112,
+        "spurious": 1,
+        "missed": 22,
+        "merged": 5,
+        "all_right": 6
+      },
+      "seconds_per_image": 1.0
+    }
+  }
+}

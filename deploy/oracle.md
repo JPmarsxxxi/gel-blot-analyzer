@@ -55,6 +55,28 @@ minute while the HTTPS certificate is issued.
 After merging changes on GitHub, connect again and run the same `curl ... | bash`
 line. Projects are kept.
 
+## Usage stats
+
+On the server:
+
+```bash
+sudo docker exec gel-app python -m app.stats            # last 30 days
+sudo docker exec gel-app python -m app.stats --days 7
+```
+
+It prints visitors, visits, uploads, exports and failed uploads per UTC day,
+the top referring pages, and all-time totals. Visitors are counted per day
+only (no one is recognised across days), so totals are "visitor-days".
+Projects reopened on a later day are counted as returning projects.
+
+To keep your own use out of the numbers, open the site once in each browser
+you use with `?notrack=1` on the end of the address (for example
+`https://YOUR_IP.sslip.io/?notrack=1`). That sets an opt-out cookie for a
+year; `?notrack=0` removes it.
+
+Raw events are kept 30 days; daily totals are kept for good. They live in the
+same database as projects, in `/srv/gel-data`.
+
 ## Good to know
 
 - Projects live in `/srv/gel-data` on the server. Copy that folder to back

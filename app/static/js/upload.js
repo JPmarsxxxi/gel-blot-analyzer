@@ -1,3 +1,11 @@
+// Anonymous visit count (see the privacy note); never blocks or breaks the page.
+fetch("/api/visit", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ page: "upload", referrer: document.referrer }),
+  keepalive: true,
+}).catch(() => {});
+
 const fileInput = document.getElementById("file-input");
 const dropzone = document.getElementById("dropzone");
 const idleEl = dropzone.querySelector(".dropzone-idle");

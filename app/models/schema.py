@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import ForeignKey, String, Float, Boolean, Integer, DateTime
+from sqlalchemy import ForeignKey, String, Float, Boolean, Integer, DateTime, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -111,3 +111,34 @@ class Band(Base):
     manually_edited: Mapped[bool] = mapped_column(Boolean, default=False)
 
     lane: Mapped["Lane"] = relationship(back_populates="bands")
+
+
+# Usage tracking (see SPEC.md "Usage tracking"). No raw IPs, user agents or project IDs.
+class UsageEvent(Base):
+    __tablename__ = "usage_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # UTC date, YYYY-MM-DD
+    kind: Mapped[str] = mapped_column(String(32))
+    visitor_hash: Mapped[str] = mapped_column(String(64))
+    detail: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    project_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class UsageDaily(Base):
+    __tablename__ = "usage_daily"
+    __table_args__ = (UniqueConstraint("day", "metric", "key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)
+    metric: Mapped[str] = mapped_column(String(32))
+    key: Mapped[str] = mapped_column(String(300), default="")
+    count: Mapped[int] = mapped_column(Integer)
+
+
+class UsageSalt(Base):
+    __tablename__ = "usage_salt"
+
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)
+    salt: Mapped[str] = mapped_column(String(64))

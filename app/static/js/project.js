@@ -1,6 +1,14 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 const projectId = document.body.dataset.projectId;
 
+// Anonymous visit count (see the privacy note); never blocks or breaks the page.
+fetch("/api/visit", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ page: "project", referrer: document.referrer, project_id: projectId }),
+  keepalive: true,
+}).catch(() => {});
+
 document.getElementById("export-csv").href = `/api/projects/${projectId}/export/csv`;
 document.getElementById("export-png").href = `/api/projects/${projectId}/export/png`;
 document.getElementById("export-pdf").href = `/api/projects/${projectId}/export/pdf`;

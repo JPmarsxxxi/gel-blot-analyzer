@@ -438,6 +438,9 @@ kbd {
 .band-box.selected { stroke: #fff; stroke-width: 2.5; stroke-dasharray: none; fill: rgba(14, 116, 128, 0.18); }
 
 .band-handle { fill: #fff; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; cursor: nwse-resize; }
+.band-handle[data-dir="n"], .band-handle[data-dir="s"] { cursor: ns-resize; }
+.band-handle[data-dir="e"], .band-handle[data-dir="w"] { cursor: ew-resize; }
+.band-handle[data-dir="sw"] { cursor: nesw-resize; }
 .band-delete { cursor: pointer; }
 .band-delete circle { fill: var(--danger); stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .band-delete text { fill: #fff; text-anchor: middle; dominant-baseline: central; font-weight: 700; pointer-events: none; }

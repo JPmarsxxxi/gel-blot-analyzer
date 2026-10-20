@@ -52,6 +52,12 @@ def get_session():
     return _ScopedSession()
 
 
+def new_session() -> Session:
+    """A session independent of the request's scoped one, so usage tracking
+    can commit or fail without touching the request's transaction."""
+    return _SessionFactory()
+
+
 def remove_session() -> None:
     _ScopedSession.remove()
 

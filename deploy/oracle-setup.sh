@@ -38,7 +38,7 @@ sudo docker network inspect gel >/dev/null 2>&1 || sudo docker network create ge
 
 sudo docker rm -f gel-app >/dev/null 2>&1 || true
 sudo docker run -d --name gel-app --network gel --restart unless-stopped \
-  -v "$DATA":/data gel-analyzer
+  -e GEL_STORAGE_DIR=/data -v "$DATA":/data gel-analyzer
 
 sudo docker rm -f gel-caddy >/dev/null 2>&1 || true
 sudo docker run -d --name gel-caddy --network gel --restart unless-stopped \

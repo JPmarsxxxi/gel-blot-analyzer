@@ -279,6 +279,195 @@ Caddy for HTTPS (`deploy/oracle-setup.sh`), or as a Hugging Face Docker Space.
 
 ---
 
+# Usage tracking — SPEC
+
+Added 2026-10-13 on branch `feat/usage-tracking`. Self-contained: the V1
+sections above describe the app; this section describes only the tracking
+feature. Criteria are numbered T1–T15 so they don't collide with V1's 1–18.
+
+## Goal
+
+Let the owner measure whether outreach is working: how many people visit,
+upload and export each day, where they came from, how often uploads fail, and
+whether projects get used again on a later day. First-party only: no
+third-party tracker, no persistent visitor identity. The numbers are read with
+a command run on the server; nothing about usage is shown on the website.
+
+## Non-goals / out of scope
+
+- No web page, endpoint or API that returns stats. CLI only.
+- No recognising the same person across days (no persistent cookie ID, no
+  fixed-salt hash). Unique visitors are counted per UTC day only.
+- No third-party analytics scripts, pixels or services.
+- No `?ref=` / UTM campaign links. Attribution is the browser referrer only.
+- No storing raw IP addresses, user agents, or project IDs in the usage log.
+- No charts, dashboards, alerting or email reports.
+- No tracking of what is inside images or projects (band counts, names, etc.).
+- Tracking must not change any existing behaviour, response or status code.
+
+## Files & interfaces involved
+
+- `app/tracking.py` (new): record events, daily-salted hashing, bot filter,
+  referrer cleaning, notrack check, rollup into daily totals.
+- `app/models/schema.py`: new tables (created by the existing
+  `Base.metadata.create_all` in `app/models/db.py:init_db`; no migration tool):
+  - `usage_events`: raw rows. `id`, `created_at` (UTC), `day` (UTC date),
+    `kind`, `visitor_hash`, `detail` (string, nullable), `project_hash`
+    (nullable).
+  - `usage_daily`: rolled-up totals kept forever. `day`, `metric`, `key`
+    (string, "" when unused), `count`; unique on (`day`, `metric`, `key`).
+  - `usage_salt`: `day` (primary key), `salt` (random 32 bytes, hex).
+- `app/routes.py`: new `POST /api/visit` (beacon); record events in
+  `create_project` (success and rejection paths) and in the three export
+  routes (`export_csv`, `export_png`, `export_pdf`).
+- `app/server.py`: record `upload_failed` for 413 (too large) and for 429 on
+  `POST /api/projects` (rate-limited); handle `?notrack=`.
+- `app/maintenance.py`: the existing hourly purge loop also runs the rollup.
+- `app/stats.py` (new): CLI, `python -m app.stats [--days N]`.
+- `app/templates/index.html`, `app/templates/project.html` (or
+  `app/static/js/upload.js`, `project.js`): send the visit beacon on page
+  load; update the privacy note.
+- `deploy/oracle.md`, `README.md`: how to read stats on the server
+  (`sudo docker exec gel-app python -m app.stats`) and how to exclude
+  yourself.
+- `tests/test_tracking.py` (new).
+
+## Key decisions & tradeoffs (from interview)
+
+- **Unique visitors are daily only.** `visitor_hash = sha256(salt_for_day +
+  client_ip + user_agent)`. The salt is random per UTC day, stored in
+  `usage_salt` so a restart mid-day doesn't double-count, and salts for past
+  days are deleted when the next day's salt is created (not only by the
+  hourly job), so hashes can't be linked across days or reversed by
+  brute-forcing IPs. Chosen over a fixed salt or a cookie for privacy; the
+  cost is that returning *people* are invisible.
+- **Return use is measured per project instead.** When a project page is
+  visited (beacon from `/p/<id>`) for a project whose `created_at` is on an
+  earlier UTC day, record a `project_return` event with `project_hash =
+  sha256(salt_for_day + project_id)`. Project IDs are edit-capability links,
+  so they are never stored raw. The daily metric is the count of distinct
+  `project_hash` values that day. Shared-link viewers count too; accepted.
+- **Visits are counted from a JavaScript beacon**, not server page loads, so
+  most bots (which don't run JS) are excluded. The beacon endpoint also
+  ignores user agents matching a bot list (bot, crawl, spider, slurp,
+  headless, preview, monitor, curl, wget, python-requests; case-insensitive).
+  The beacon sends `document.referrer`, the page type (`upload` or
+  `project`) and, on project pages, the project ID. The beacon request's own
+  `Referer` header is not used (it would be our own page).
+- **Referrer: host only.** Store the host, e.g. `www.reddit.com`. Paths,
+  query strings and fragments are dropped because they can carry tokens,
+  usernames, document IDs, search terms or emails. Referrers from the app's own host are stored as empty
+  (internal navigation). Truncate to 300 characters.
+- **Excluding the owner: `?notrack=1`.** Any request with `?notrack=1` sets
+  a cookie `gel_notrack=1` (1 year, `SameSite=Lax`, `HttpOnly`) that holds no
+  identifier. Requests carrying that cookie record nothing (visits, uploads,
+  exports, failures). `?notrack=0` clears it. Requests sending `Sec-GPC: 1`
+  or `DNT: 1` are never recorded either.
+- **Failures are counted** as `upload_failed` with `detail` = reason:
+  `not_image` (file fails image validation), `too_large` (413),
+  `rate_limited` (429 on `POST /api/projects`), `bad_request` (any other 4xx
+  from `create_project`), `server_error` (any 5xx).
+- **Retention: raw rows 30 days, daily totals forever.** The rollup writes
+  `usage_daily` for every completed UTC day (before today) not yet rolled up,
+  then deletes `usage_events` rows older than `RETENTION_DAYS` and
+  `usage_salt` rows for days before today. Rollup is idempotent: re-running
+  it for a day replaces that day's totals, never doubles them.
+- **Tracking never breaks the app.** Every recording call is wrapped so an
+  exception is logged and swallowed; the request proceeds exactly as it
+  would without tracking. The beacon endpoint always returns 204.
+- **Days are UTC.**
+
+## Events and metrics
+
+| Event kind | Recorded when | Daily metrics (`metric`, `key`) |
+|---|---|---|
+| `visit` | beacon from upload or project page | `visits` (key = page type); `visitors` (distinct `visitor_hash`, key ""); `referrer` (key = cleaned referrer, non-empty only) |
+| `upload` | `POST /api/projects` succeeds; `detail` = number of images | `uploads` (projects created); `images_uploaded` (sum of detail) |
+| `upload_failed` | see failures above; `detail` = reason | `upload_failed` (key = reason) |
+| `export` | an export route returns 200; `detail` = csv/png/pdf | `exports` (key = format) |
+| `project_return` | project-page beacon for a project created on an earlier UTC day | `returning_projects` (distinct `project_hash`) |
+
+## CLI
+
+`python -m app.stats [--days N]` (default 30) prints, for each of the last N
+UTC days that has any data, newest first: visitors, visits, uploads, images,
+exports (by format), failed uploads (by reason), returning projects. Then
+the top 10 referrers over those days with counts. Then all-time totals (sum
+of `usage_daily` plus not-yet-rolled raw rows); visitors are summed per day
+and labelled "visitor-days", since daily uniques can't be deduplicated
+across days. It reads both rolled totals and raw rows, so today's numbers
+are current. On an empty database it prints "No usage recorded yet." and
+exits 0.
+
+## Edge cases
+
+- Missing `User-Agent` or IP: hash with empty strings; still counted.
+- `document.referrer` empty, malformed or not http(s): stored as empty.
+- Beacon for a project ID that doesn't exist: record the `visit`, skip
+  `project_return`; still 204.
+- Beacon body missing or invalid JSON: 204, record a visit with page type
+  `unknown`.
+- Beacon flood: covered by the existing per-IP request rate limit.
+- Server restart mid-day: the salt is read from `usage_salt`, so that day's
+  uniques stay consistent.
+- Two requests creating the same day's salt at once: insert-if-absent, then
+  read back (there is one worker, but don't rely on it).
+- Rollup after downtime spanning several days: each missing completed day is
+  rolled up once; existing totals for a day are replaced, not added to.
+- Project deleted by retention: its past `project_return` counts remain in
+  the totals (only hashes were stored).
+- `gel_notrack` cookie present on an upload that fails: nothing recorded.
+- Tests must be able to fix the clock/day (pass `now`, as
+  `purge_stale_projects` already does).
+
+## Acceptance criteria
+
+T1. `KMP_DUPLICATE_LIB_OK=TRUE python -m pytest tests/ -q` passes, apart from
+    failures that also occur on `main` (currently
+    `test_reject_non_image_file_before_processing`, caused by a missing
+    `pi_heif` package inside ultralytics).
+T2. The upload page and project page each send one `POST /api/visit` on load
+    (present in the served HTML/JS); the endpoint returns 204 and creates one
+    `visit` row; a request with a bot user agent (e.g. containing
+    `Googlebot`) creates none.
+T3. Two visits on the same UTC day from the same IP + user agent give
+    `visitors = 1`; the same pair on the next day gets a different
+    `visitor_hash` (test by injecting the day).
+T4. No usage table row contains the raw IP address, user agent string or
+    project ID used in a test that records every event kind.
+T5. A referrer `https://www.reddit.com/r/labrats/comments/abc?utm=x#top` is
+    stored as `www.reddit.com`; a referrer on the
+    app's own host is stored as empty.
+T6. A successful upload of 3 images records one `upload` event with detail
+    3; each successful export (csv, png, pdf) records one `export` event with
+    the matching format.
+T7. A non-image upload records `upload_failed`/`not_image`; an oversized
+    upload records `upload_failed`/`too_large`; a rate-limited upload records
+    `upload_failed`/`rate_limited`. Status codes and response bodies are the
+    same as on `main`.
+T8. A project-page beacon for a project created on an earlier UTC day
+    records `project_return`; two such beacons that day give
+    `returning_projects = 1`; a project created the same day records none.
+T9. A request with `?notrack=1` sets the `gel_notrack` cookie; afterwards,
+    visits, uploads, exports and failures from that client record nothing;
+    `?notrack=0` clears the cookie.
+T10. Rollup produces correct `usage_daily` totals for a past day, deletes raw
+    rows older than 30 days and salts for past days, and running it twice
+    leaves the totals unchanged.
+T11. If recording raises (e.g. a usage table is missing), uploads, exports
+    and page loads still succeed with their normal responses.
+T12. `python -m app.stats` prints per-day rows, top referrers and all-time
+    totals as described under CLI; on an empty database it prints
+    "No usage recorded yet." and exits 0.
+T13. No route returns usage data: `/stats` and `/api/stats` return 404, and
+    no template renders usage numbers.
+T14. No third-party script, pixel or external request is added to any
+    template or JS file.
+T15. The upload page privacy note says that anonymous daily visit counts and
+    the referring page are recorded, with no IP addresses stored and no
+    cookies other than the opt-out one; `deploy/oracle.md` documents
+    `sudo docker exec gel-app python -m app.stats` and `?notrack=1`.
+
 # Membrane auto-crop — SPEC
 
 Added 2026-10-15 on branch `feat/membrane-autocrop`. Self-contained: the V1

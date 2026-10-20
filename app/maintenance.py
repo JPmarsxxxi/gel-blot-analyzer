@@ -1,4 +1,6 @@
-"""Deletes projects (rows and uploaded files) untouched for RETENTION_DAYS."""
+"""Deletes projects (rows and uploaded files) untouched for RETENTION_DAYS,
+and rolls raw usage events up into daily totals."""
+import logging
 import os
 import shutil
 import threading
@@ -7,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from app.config import RETENTION_DAYS, UPLOADS_DIR
 from app.models.db import session_scope
 from app.models.schema import Project
+from app.tracking import rollup
 
 
 def purge_stale_projects(now: datetime | None = None) -> int:
@@ -24,7 +27,11 @@ def purge_stale_projects(now: datetime | None = None) -> int:
 def start_purge_thread(interval_seconds: int = 3600) -> None:
     def loop():
         while True:
-            purge_stale_projects()
+            for step in (purge_stale_projects, rollup):
+                try:
+                    step()
+                except Exception:
+                    logging.getLogger(__name__).exception("%s failed", step.__name__)
             stop.wait(interval_seconds)
 
     stop = threading.Event()

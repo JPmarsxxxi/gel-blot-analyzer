@@ -8,6 +8,7 @@ from app.config import MAX_CONTENT_LENGTH, MAX_FILE_BYTES, MAX_FILES_PER_UPLOAD,
 from app.models.db import init_db, remove_session
 from app.ratelimit import RateLimiter
 from app.routes import bp
+from app.tracking import track_response
 
 
 def create_app() -> Flask:
@@ -40,6 +41,8 @@ def create_app() -> Flask:
     @app.errorhandler(413)
     def _too_large(_exc):
         return jsonify({"error": f"Upload too large. Send at most {MAX_FILES_PER_UPLOAD} images of up to {MAX_FILE_BYTES // (1024 * 1024)} MB each."}), 413
+
+    app.after_request(track_response)
 
     @app.teardown_appcontext
     def _cleanup(_exc):

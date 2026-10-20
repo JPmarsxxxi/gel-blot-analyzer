@@ -14,6 +14,7 @@ from app.export import build_csv, build_pdf, render_annotated_image
 from app.models.db import session_scope
 from app.models.schema import Band, GelImage, Lane, Project
 from app.serializers import serialize_image, serialize_lane, serialize_project
+from app.tracking import record_visit
 
 bp = Blueprint("api", __name__)
 
@@ -655,6 +656,12 @@ def export_pdf(project_id):
 
 
 # -------------------------------------------------------------------- misc --
+
+@bp.route("/api/visit", methods=["POST"])
+def visit():
+    record_visit(request.get_json(force=True, silent=True))
+    return "", 204
+
 
 @bp.route("/storage/uploads/<project_id>/<path:filename>")
 def serve_upload(project_id, filename):

@@ -72,6 +72,12 @@ needs a paid Hugging Face plan.
 The public app caps uploads at 25 MB per image and 20 images per upload,
 rate-limits each IP, and deletes projects 30 days after their last change.
 
+It counts usage first-party, with no third-party trackers: anonymous daily
+visitors (hashed with a salt that changes every day; no IPs stored), visits
+and referring pages, uploads, exports and failed uploads. Read them with
+`python -m app.stats` (on Oracle: see [deploy/oracle.md](deploy/oracle.md#usage-stats));
+add `?notrack=1` to the address to exclude your own browser.
+
 ## Licence and credits
 
 Released under the GNU AGPL-3.0 (see `LICENSE`), as required by Ultralytics

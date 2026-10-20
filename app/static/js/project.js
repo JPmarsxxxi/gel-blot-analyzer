@@ -112,6 +112,7 @@ class GelPanel {
     this.lanesListEl = q(".lanes-list");
     this.summaryEl = q(".summary");
     this.warningEl = q(".gel-warning");
+    this.cropNoticeEl = q(".crop-notice");
     this.modeHintEl = q(".mode-hint");
     this.ladderSelect = q(".ladder-select");
     this.ladderBandsEl = q(".ladder-bands");
@@ -126,6 +127,8 @@ class GelPanel {
       dismissHint();
       document.querySelectorAll(".hint").forEach((h) => (h.hidden = true));
     });
+
+    q(".undo-crop-btn").addEventListener("click", () => this.undoCrop());
 
     this._wireToolbar();
     this._wireAdjustDrawer();
@@ -473,6 +476,19 @@ class GelPanel {
     }
   }
 
+  async undoCrop() {
+    this.el.classList.add("working");
+    try {
+      this.image = await api(`/api/images/${this.image.id}/undo-crop`, { method: "POST" });
+      this.selectedBandId = null;
+      this.render();
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      this.el.classList.remove("working");
+    }
+  }
+
   async deleteLane(lane) {
     const n = lane.bands.length;
     if (n && !confirm(`Remove lane ${lane.index + 1} and its ${n} band${n === 1 ? "" : "s"}?`)) return;
@@ -502,6 +518,7 @@ class GelPanel {
     if (this.imgEl.getAttribute("src") !== img.url) this.imgEl.src = img.url;
     this.svg.setAttribute("viewBox", `0 0 ${img.width} ${img.height}`);
     this.warningEl.hidden = img.is_gel_like;
+    this.cropNoticeEl.hidden = !img.auto_cropped;
 
     this._renderSummary();
     this._renderOverlay();

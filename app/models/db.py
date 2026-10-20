@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.config import DB_URI
@@ -33,8 +33,19 @@ def _touch_projects(session, _flush_context, _instances):
             project.updated_at = _now()
 
 
+# create_all makes missing tables but never adds columns to existing ones,
+# and there is no migration tool: columns added after launch go here.
+_ADDED_COLUMNS = {"gel_images": {"auto_cropped": "BOOLEAN NOT NULL DEFAULT 0"}}
+
+
 def init_db() -> None:
     Base.metadata.create_all(_engine)
+    with _engine.begin() as conn:
+        for table, columns in _ADDED_COLUMNS.items():
+            existing = {c["name"] for c in inspect(conn).get_columns(table)}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 def get_session():

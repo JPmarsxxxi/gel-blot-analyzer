@@ -38,6 +38,22 @@ def _validate_is_image(path: str) -> bool:
         return False
 
 
+def _auto_crop(path: str, project_dir: str) -> tuple[str, tuple[int, int, int, int]] | None:
+    """Raw imager export (small membrane in a big frame): write the membrane
+    crop as a new file and return (its name, box); the original stays on disk."""
+    from app.detection.imaging import load_rgb, save_rgb, to_grayscale
+    from app.detection.membrane import find_membrane
+
+    rgb = load_rgb(path)
+    box = find_membrane(to_grayscale(rgb))
+    if box is None:
+        return None
+    x, y, w, h = box
+    name = f"{uuid.uuid4().hex}.png"
+    save_rgb(rgb[y : y + h, x : x + w], os.path.join(project_dir, name))
+    return name, box
+
+
 def _error(message: str, status: int = 400):
     return jsonify({"error": message}), status
 
@@ -103,6 +119,11 @@ def create_project():
         for order_index, (orig_filename, stored_name, stored_path) in enumerate(saved):
             from PIL import Image as PILImage
 
+            source_name = stored_name
+            crop = _auto_crop(stored_path, project_dir)
+            if crop is not None:
+                stored_name, stored_path = crop[0], os.path.join(project_dir, crop[0])
+
             with PILImage.open(stored_path) as im:
                 width, height = im.size
 
@@ -111,10 +132,13 @@ def create_project():
                 order_index=order_index,
                 orig_filename=orig_filename,
                 stored_filename=stored_name,
-                source_filename=stored_name,
+                source_filename=source_name,
                 width=width,
                 height=height,
             )
+            if crop is not None:
+                gel_image.auto_cropped = True
+                gel_image.crop_x, gel_image.crop_y, gel_image.crop_w, gel_image.crop_h = crop[1]
             session.add(gel_image)
             session.flush()
 
@@ -211,6 +235,7 @@ def update_image_adjustments(image_id):
         image.stored_filename = new_stored_name
         image.width = width
         image.height = height
+        image.auto_cropped = False
 
         result = pipeline.run_full_detection(new_stored_path, sensitivity=image.sensitivity)
         image.is_gel_like = result.is_gel_like
@@ -246,6 +271,54 @@ def update_image_adjustments(image_id):
     if old_stored_path != _source_path(image) and os.path.exists(old_stored_path):
         os.remove(old_stored_path)
 
+    return jsonify(response)
+
+
+@bp.route("/api/images/<int:image_id>/undo-crop", methods=["POST"])
+def undo_auto_crop(image_id):
+    with session_scope() as session:
+        image = session.get(GelImage, image_id)
+        if image is None:
+            return _error("Image not found.", 404)
+        if not image.auto_cropped:
+            return _error("This image wasn't cropped automatically.")
+
+        from PIL import Image as PILImage
+
+        cropped_path = _image_path(image)
+        image.stored_filename = image.source_filename
+        source_path = _source_path(image)
+        with PILImage.open(source_path) as im:
+            image.width, image.height = im.size
+        image.auto_cropped = False
+        image.crop_x, image.crop_y, image.crop_w, image.crop_h = 0.0, 0.0, None, None
+
+        result = pipeline.run_full_detection(source_path, sensitivity=image.sensitivity)
+        image.is_gel_like = result.is_gel_like
+        image.lanes.clear()
+        session.flush()
+        for lane_idx, (lane_boundary, bands) in enumerate(zip(result.lanes, result.bands_by_lane)):
+            lane = Lane(index=lane_idx, x_start=lane_boundary.x_start, x_end=lane_boundary.x_end)
+            image.lanes.append(lane)
+            session.flush()
+            for band in bands:
+                lane.bands.append(
+                    Band(
+                        x=band.x,
+                        y=band.y,
+                        width=band.width,
+                        height=band.height,
+                        intensity=band.intensity,
+                        percent_of_lane=band.percent_of_lane,
+                        confidence=band.confidence,
+                        low_confidence=band.low_confidence,
+                    )
+                )
+        session.flush()
+        response = serialize_image(image)
+
+    if cropped_path != source_path and os.path.exists(cropped_path):
+        os.remove(cropped_path)
     return jsonify(response)
 
 

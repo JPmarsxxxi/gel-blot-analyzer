@@ -48,6 +48,7 @@ def serialize_image(image: GelImage) -> dict:
         "contrast": image.contrast,
         "sensitivity": image.sensitivity,
         "is_gel_like": image.is_gel_like,
+        "auto_cropped": image.auto_cropped,
         "lanes": [serialize_lane(l) for l in image.lanes],
     }
 

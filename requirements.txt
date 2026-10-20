@@ -11,4 +11,5 @@ torchvision
 scikit-learn
 tifffile
 ultralytics
+pi-heif
 gunicorn

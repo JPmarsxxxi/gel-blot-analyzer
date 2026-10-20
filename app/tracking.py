@@ -40,6 +40,9 @@ def day_of(now: datetime | None = None) -> str:
 def _salt(session, day: str) -> str:
     row = session.get(UsageSalt, day)
     if row is None:
+        # Rotate here so past salts never outlive midnight, whether or not the
+        # maintenance thread is running.
+        session.query(UsageSalt).filter(UsageSalt.day < day).delete()
         try:
             session.add(UsageSalt(day=day, salt=secrets.token_hex(32)))
             session.commit()
@@ -54,12 +57,17 @@ def _hash(salt: str, *parts: str) -> str:
 
 
 def opted_out() -> bool:
-    return request.cookies.get(NOTRACK_COOKIE) == "1" or request.args.get("notrack") == "1"
+    return (
+        request.cookies.get(NOTRACK_COOKIE) == "1"
+        or request.args.get("notrack") == "1"
+        or request.headers.get("Sec-GPC") == "1"
+        or request.headers.get("DNT") == "1"
+    )
 
 
 def clean_referrer(referrer, own_host: str) -> str:
-    """Host + path only: query strings and fragments can carry search terms,
-    emails or tokens. Internal navigation is stored as empty."""
+    """Host only: paths, queries and fragments can carry tokens, usernames or
+    document IDs. Internal navigation is stored as empty."""
     try:
         parts = urlsplit(referrer if isinstance(referrer, str) else "")
         host = parts.hostname
@@ -69,8 +77,7 @@ def clean_referrer(referrer, own_host: str) -> str:
         return ""
     if host == urlsplit("//" + own_host).hostname:
         return ""
-    netloc = parts.netloc.rsplit("@", 1)[-1]  # drop any user:password@
-    return (netloc + parts.path)[:MAX_REFERRER]
+    return host[:MAX_REFERRER]
 
 
 def _record(kind: str, detail: str | None = None, project_id: str | None = None, now: datetime | None = None) -> None:
@@ -132,8 +139,8 @@ def track_response(response):
         if request.method == "POST" and request.path == "/api/projects":
             if status == 201:
                 record("upload", detail=str(len(request.files.getlist("images"))))
-            elif 400 <= status < 500:
-                record("upload_failed", detail=FAILURE_REASONS.get(status, "bad_request"))
+            elif status >= 400:
+                record("upload_failed", detail=FAILURE_REASONS.get(status, "server_error" if status >= 500 else "bad_request"))
         elif request.method == "GET" and status == 200:
             match = EXPORT_PATH.match(request.path)
             if match:

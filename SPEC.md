@@ -337,7 +337,8 @@ a command run on the server; nothing about usage is shown on the website.
 - **Unique visitors are daily only.** `visitor_hash = sha256(salt_for_day +
   client_ip + user_agent)`. The salt is random per UTC day, stored in
   `usage_salt` so a restart mid-day doesn't double-count, and salts for past
-  days are deleted, so hashes can't be linked across days or reversed by
+  days are deleted when the next day's salt is created (not only by the
+  hourly job), so hashes can't be linked across days or reversed by
   brute-forcing IPs. Chosen over a fixed salt or a cookie for privacy; the
   cost is that returning *people* are invisible.
 - **Return use is measured per project instead.** When a project page is
@@ -353,19 +354,19 @@ a command run on the server; nothing about usage is shown on the website.
   The beacon sends `document.referrer`, the page type (`upload` or
   `project`) and, on project pages, the project ID. The beacon request's own
   `Referer` header is not used (it would be our own page).
-- **Referrer: full address without query or fragment.** Store host + path
-  without scheme, e.g. `www.reddit.com/r/labrats/comments/abc123`. Query
-  strings and fragments are dropped because they can carry search terms,
-  emails or tokens. Referrers from the app's own host are stored as empty
+- **Referrer: host only.** Store the host, e.g. `www.reddit.com`. Paths,
+  query strings and fragments are dropped because they can carry tokens,
+  usernames, document IDs, search terms or emails. Referrers from the app's own host are stored as empty
   (internal navigation). Truncate to 300 characters.
 - **Excluding the owner: `?notrack=1`.** Any request with `?notrack=1` sets
   a cookie `gel_notrack=1` (1 year, `SameSite=Lax`, `HttpOnly`) that holds no
   identifier. Requests carrying that cookie record nothing (visits, uploads,
-  exports, failures). `?notrack=0` clears it.
+  exports, failures). `?notrack=0` clears it. Requests sending `Sec-GPC: 1`
+  or `DNT: 1` are never recorded either.
 - **Failures are counted** as `upload_failed` with `detail` = reason:
   `not_image` (file fails image validation), `too_large` (413),
   `rate_limited` (429 on `POST /api/projects`), `bad_request` (any other 4xx
-  from `create_project`).
+  from `create_project`), `server_error` (any 5xx).
 - **Retention: raw rows 30 days, daily totals forever.** The rollup writes
   `usage_daily` for every completed UTC day (before today) not yet rolled up,
   then deletes `usage_events` rows older than `RETENTION_DAYS` and
@@ -435,7 +436,7 @@ T3. Two visits on the same UTC day from the same IP + user agent give
 T4. No usage table row contains the raw IP address, user agent string or
     project ID used in a test that records every event kind.
 T5. A referrer `https://www.reddit.com/r/labrats/comments/abc?utm=x#top` is
-    stored as `www.reddit.com/r/labrats/comments/abc`; a referrer on the
+    stored as `www.reddit.com`; a referrer on the
     app's own host is stored as empty.
 T6. A successful upload of 3 images records one `upload` event with detail
     3; each successful export (csv, png, pdf) records one `export` event with

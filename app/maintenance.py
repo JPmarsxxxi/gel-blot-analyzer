@@ -27,11 +27,11 @@ def purge_stale_projects(now: datetime | None = None) -> int:
 def start_purge_thread(interval_seconds: int = 3600) -> None:
     def loop():
         while True:
-            purge_stale_projects()
-            try:
-                rollup()
-            except Exception:
-                logging.getLogger(__name__).exception("usage rollup failed")
+            for step in (purge_stale_projects, rollup):
+                try:
+                    step()
+                except Exception:
+                    logging.getLogger(__name__).exception("%s failed", step.__name__)
             stop.wait(interval_seconds)
 
     stop = threading.Event()

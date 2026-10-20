@@ -108,20 +108,20 @@ def test_no_raw_ip_user_agent_or_project_id_is_stored(client):
 
 # T5
 def test_referrer_is_cleaned():
-    assert tracking.clean_referrer("https://www.reddit.com/r/labrats/comments/abc?utm=x#top", "gels.example") == "www.reddit.com/r/labrats/comments/abc"
+    assert tracking.clean_referrer("https://www.reddit.com/r/labrats/comments/abc?utm=x#top", "gels.example") == "www.reddit.com"
     assert tracking.clean_referrer("https://gels.example/p/123", "gels.example") == ""
     assert tracking.clean_referrer("http://localhost:5000/", "localhost:5000") == ""
     assert tracking.clean_referrer("javascript:alert(1)", "gels.example") == ""
-    assert tracking.clean_referrer("https://user:pw@site.org/a", "gels.example") == "site.org/a"
+    assert tracking.clean_referrer("https://user:pw@site.org/a", "gels.example") == "site.org"
     assert tracking.clean_referrer("http://[bad", "gels.example") == ""
     assert tracking.clean_referrer(None, "gels.example") == ""
-    assert len(tracking.clean_referrer("https://a.org/" + "x" * 500, "gels.example")) == 300
+    assert tracking.clean_referrer("https://a.org/reset/secret-token", "gels.example") == "a.org"
 
 
 def test_beacon_referrer_on_own_host_is_empty(client):
     beacon(client, page="upload", referrer="http://localhost/p/x")
     beacon(client, page="upload", referrer="https://www.reddit.com/r/labrats/?q=1")
-    assert [e.detail for e in events("visit")] == ["upload|", "upload|www.reddit.com/r/labrats/"]
+    assert [e.detail for e in events("visit")] == ["upload|", "upload|www.reddit.com"]
 
 
 # T6
@@ -217,7 +217,7 @@ def test_rollup_is_correct_idempotent_and_prunes():
         tracking.record("visit", detail="upload|", now=old)
         tracking.record("visit", detail="upload|", now=DAY2)
     expected = {
-        ("visits", "upload"): 1, ("visits", "project"): 1, ("visitors", ""): 1, ("referrer", "site.org/a"): 1,
+        ("visits", "upload"): 1, ("visits", "project"): 1, ("visitors", ""): 1, ("referrer", "site.org"): 1,
         ("uploads", ""): 1, ("images_uploaded", ""): 2, ("exports", "pdf"): 1, ("upload_failed", "not_image"): 1,
     }
 
@@ -269,7 +269,7 @@ def test_stats_cli(client):
     out = report(30)
     today = tracking.day_of()
     assert re.search(rf"{today}  visitors 1  visits 1  uploads 1  images 2", out)
-    assert "www.reddit.com/r/labrats/" in out
+    assert "www.reddit.com" in out
     assert "All time: visitor-days 1, visits 1, uploads 1, images 2" in out
 
     run = subprocess.run([sys.executable, "-m", "app.stats", "--days", "7"], cwd=BASE_DIR, capture_output=True, text=True,
@@ -309,3 +309,18 @@ def test_privacy_note_and_docs(client):
 def test_usage_tables_exist():
     tables = set(inspect(_engine).get_table_names())
     assert {"usage_events", "usage_daily", "usage_salt"} <= tables
+
+
+def test_gpc_and_dnt_headers_stop_recording(client):
+    for header in ("Sec-GPC", "DNT"):
+        client.post("/api/visit", json={"page": "upload"}, headers={header: "1"}, environ_base=ENV)
+    assert events() == []
+
+
+def test_new_day_salt_deletes_past_salts():
+    from app.models.db import new_session
+
+    with new_session() as session:
+        tracking._salt(session, "2026-03-01")
+        tracking._salt(session, "2026-03-02")
+        assert [s.day for s in session.query(UsageSalt)] == ["2026-03-02"]

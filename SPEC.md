@@ -276,3 +276,104 @@ Caddy for HTTPS (`deploy/oracle-setup.sh`), or as a Hugging Face Docker Space.
 17. Projects untouched for 30 days are deleted along with their files.
 18. The upload page shows the privacy note; the repository carries an
     AGPL-3.0 LICENSE and credits GelGenie and Ultralytics.
+
+---
+
+# Membrane auto-crop — SPEC
+
+Added 2026-10-15 on branch `feat/membrane-autocrop`. Self-contained: the V1
+sections above describe the app; criteria are numbered C1–C10.
+
+## Goal
+
+Raw exports from blot imagers (e.g. a Bio-Rad ChemiDoc "merge" image) show a
+small membrane in the middle of a large, uniform camera frame. Detection on
+the full frame fails (one lane, few or no bands). On upload, detect this case
+and crop to the membrane before detection, tell the user, and let them undo.
+
+## Non-goals / out of scope
+
+- No cropping of anything except the clear "single object in a uniform frame"
+  case. Already-cropped gels and blots, and gels photographed on a
+  transilluminator, are never touched.
+- No rotation/deskew of the membrane; no multi-membrane frames.
+- Chemiluminescence-only exports (bands on black, membrane invisible) are not
+  handled; there is no membrane edge to find.
+- No change to manual crop, rotate or brightness behaviour.
+
+## Files & interfaces involved
+
+- `app/detection/membrane.py` (new): `find_membrane(gray) -> (x, y, w, h) | None`.
+- `app/routes.py` `create_project`: after validation and TIFF conversion, if
+  `find_membrane` returns a box, write the cropped image as the stored image,
+  keep the full frame as the source (`source_filename`), set
+  `auto_cropped = True` and record the box in `crop_x/y/w/h`.
+- `app/models/schema.py` `GelImage.auto_cropped` (bool, default False);
+  `app/models/db.py` `init_db` adds the column to an existing `gel_images`
+  table if missing (SQLite `ALTER TABLE ... ADD COLUMN`; `create_all` does not
+  add columns and the live database already has the table).
+- `app/routes.py`: `POST /api/images/<id>/undo-crop`: restore the source
+  image as the stored image, clear `auto_cropped` and the crop fields, re-run
+  detection (replacing lanes via `.clear()` / `.append()`), delete the cropped
+  file, return the serialized image. 400 if the image isn't auto-cropped.
+- `PATCH /api/images/<id>` (manual adjustments) sets `auto_cropped = False`:
+  undo would discard the manual change, so the offer is withdrawn.
+- `app/serializers.py`: `auto_cropped` in the image JSON.
+- `app/templates/project.html`, `app/static/js/project.js`, `style.css`: a
+  notice in the gel panel when `auto_cropped`: "Cropped to the membrane."
+  plus an "Undo crop" button.
+- `tests/test_membrane.py` (new); `app/training/membrane_check.py` (new,
+  offline): runs `find_membrane` on the data sets below and prints counts.
+
+## Key decisions (from interview)
+
+- Auto-crop and show a notice with undo (not a suggestion, not silent).
+- Only clear cases. Rule, on a grayscale copy downscaled to ~600 px: background
+  = median of a 4% border strip, tolerance `max(25, 6 * MAD)`; object = pixels
+  outside tolerance, opened, holes filled, largest component. Crop only if all
+  hold: the border is flat (MAD ≤ 3); ≥ 97% of pixels outside the object's box
+  are background; the object doesn't touch the frame edge; it fills ≥ 80% of
+  its box; the second-largest object is ≤ 75% of it; the box is ≤ 15% of the
+  frame and each side spans ≥ 7% of the frame; the object is brighter than
+  the background (median lift ≥ 25); its interior is fairly even (5–95
+  percentile spread ≤ 80). Tuned on 57 ChemiDoc merge + 57 colorimetric
+  exports (all trigger) against 685 gels and blots in membrane_check, plus 36
+  other blots and test images (none trigger).
+- Crop box = object box plus a margin of 2% of the object's size, clipped to
+  the frame.
+- Undo restores the full frame and re-runs detection; manual edits made after
+  the auto-crop are lost, which the button's tooltip says.
+
+## Edge cases
+
+- Image smaller than 64 px on a side: never crop.
+- Multi-image upload: each image decided independently.
+- TIFF uploads: crop the converted PNG; the PNG full frame is the source.
+- Undo on an image that isn't auto-cropped: 400 with a message, no change.
+- Retention: the source and cropped files live in the project folder and are
+  deleted with it.
+
+## Acceptance criteria
+
+C1. `KMP_DUPLICATE_LIB_OK=TRUE python -m pytest tests/ -q` passes.
+C2. `python -m app.training.membrane_check` reports 57/57 merge and 57/57
+    colorimetric ChemiDoc exports cropped, and 0 crops on all GelGenie
+    images (train/val/test), the 25 external gels and the 176 paper strips.
+C3. Each crop box on the merge exports contains the whole membrane: it
+    contains the box found by the threshold used to make the labelled
+    ChemiDoc crops (`western_blots/labelled/selection.json`).
+C4. Uploading a raw ChemiDoc merge export gives an image whose stored size is
+    the crop, `auto_cropped: true`, and at least one lane with bands; the
+    original frame is kept on disk.
+C5. Uploading an ordinary gel gives `auto_cropped: false` and the same
+    stored image as before this change.
+C6. `POST /api/images/<id>/undo-crop` restores the full-frame size, sets
+    `auto_cropped: false`, re-runs detection; a second call returns 400.
+C7. A manual adjustment (PATCH image) after an auto-crop sets
+    `auto_cropped: false`.
+C8. `init_db` on a database whose `gel_images` lacks `auto_cropped` adds it;
+    existing rows read as False; running it again is a no-op.
+C9. The project page shows the notice and "Undo crop" button only for
+    auto-cropped images; clicking it calls the endpoint and re-renders.
+C10. No change to detection, quantification or export code paths for images
+    that are not auto-cropped.

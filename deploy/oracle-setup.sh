@@ -2,11 +2,13 @@
 # Installs or updates Gel Band Analyzer on an Oracle Cloud Ubuntu server.
 # Run it again at any time to update to the latest code on main.
 # Optional: DOMAIN=gels.example.org bash oracle-setup.sh to use your own domain.
+# The domain is remembered, so later updates need no DOMAIN.
 set -euo pipefail
 
 REPO=https://github.com/JPmarsxxxi/gel-blot-analyzer.git
 SRC=$HOME/gel-blot-analyzer
 DATA=/srv/gel-data
+DOMAIN_FILE=$HOME/.gel-domain
 
 if ! command -v docker >/dev/null || ! command -v git >/dev/null; then
   sudo apt-get update
@@ -25,8 +27,13 @@ fi
 
 # sslip.io resolves <ip>.sslip.io to <ip>, which gives a free hostname that
 # Caddy can get an HTTPS certificate for.
+if [ -z "${DOMAIN:-}" ] && [ -s "$DOMAIN_FILE" ]; then
+  DOMAIN="$(cat "$DOMAIN_FILE")"
+fi
 if [ -z "${DOMAIN:-}" ]; then
   DOMAIN="$(curl -fsS https://api.ipify.org).sslip.io"
+else
+  echo "$DOMAIN" > "$DOMAIN_FILE"
 fi
 
 # The container runs as uid 1000 and stores projects in /data.

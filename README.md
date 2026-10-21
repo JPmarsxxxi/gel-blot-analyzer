@@ -14,6 +14,8 @@ Upload a gel or western blot image and every lane and band is found and
 measured for you. You check the boxes, name your samples and export a table,
 an annotated image or a PDF report. No install, no manual box drawing.
 
+**Try it: https://gels.fumiscience.com** (free, nothing to install).
+
 ![The editor after detection: bands boxed per lane, results by lane on the right](docs/editor.png)
 
 ## What it does

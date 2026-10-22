@@ -53,7 +53,8 @@ minute while the HTTPS certificate is issued.
 ## Updating
 
 After merging changes on GitHub, connect again and run the same `curl ... | bash`
-line. Projects are kept.
+line. Projects are kept, and so is a custom domain set with `DOMAIN=` (it is
+saved in `~/.gel-domain`; delete that file to go back to sslip.io).
 
 ## Usage stats
 
@@ -71,7 +72,7 @@ Projects reopened on a later day are counted as returning projects.
 
 To keep your own use out of the numbers, open the site once in each browser
 you use with `?notrack=1` on the end of the address (for example
-`https://YOUR_IP.sslip.io/?notrack=1`). That sets an opt-out cookie for a
+`https://gels.fumiscience.com/?notrack=1`). That sets an opt-out cookie for a
 year; `?notrack=0` removes it.
 
 Raw events are kept 30 days; daily totals are kept for good. They live in the
@@ -83,6 +84,9 @@ same database as projects, in `/srv/gel-data`.
   them up.
 - The address contains the server's IP. If you ever delete and recreate the
   server, the IP and therefore the address change. For a permanent name, point
-  a domain at the IP and run `DOMAIN=your.domain bash ~/gel-blot-analyzer/deploy/oracle-setup.sh`.
+  a domain at the IP and run `DOMAIN=your.domain bash ~/gel-blot-analyzer/deploy/oracle-setup.sh`
+  once. With Cloudflare DNS, add an `A` record with the proxy off ("DNS
+  only"), or Caddy can't get its certificate. The live app runs this way at
+  https://gels.fumiscience.com.
 - Oracle may reclaim Always Free servers that stay almost idle for a week.
   Check their current policy if the app gets little traffic.

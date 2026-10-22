@@ -30,6 +30,13 @@ an annotated image or a PDF report. No install, no manual box drawing.
 It measures bands and nothing more: it never compares samples against stored
 patterns to classify or diagnose them.
 
+**Known limitation (fix in progress):** band intensities are currently
+measured on the displayed 8-bit image. Brightness and contrast adjustments
+therefore change the numbers (and strong contrast can clip bright bands), and
+16-bit TIFFs are scaled to 8-bit before measuring, which costs precision on
+faint bands. Until the fix ships, quantify with brightness and contrast left
+at their defaults.
+
 ## How well it works
 
 Measured end to end on hand-labelled gels from the GelGenie dataset (Dunn Lab,
@@ -89,7 +96,8 @@ YOLO. If you run a modified version as a service, you must share its source.
   Edinburgh, CC-BY-4.0 (Zenodo records 13218469 and 14641949); paper:
   Aquilina et al., "GelGenie: an AI-powered framework for gel electrophoresis
   image analysis", Nature Communications 16 (2025),
-  https://doi.org/10.1038/s41467-025-59189-0.
+  https://doi.org/10.1038/s41467-025-59189-0; code:
+  https://github.com/mattaq31/GelGenie.
 - Band detector: Ultralytics YOLO11, AGPL-3.0.
 - Typeface: Instrument Sans, SIL Open Font License 1.1
   (`app/static/fonts/OFL.txt`).
